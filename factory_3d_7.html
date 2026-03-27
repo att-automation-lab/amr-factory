@@ -1,0 +1,1885 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMR Factory 3D Control System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#08090d; --bg2:#0d1117; --bg3:#111827; --panel:#0f1420;
+  --border:#1a2535; --border2:#243048;
+  --accent:#00c8ff; --accent2:#00ff88; --warn:#ffaa00; --danger:#ff3355;
+  --purple:#aa66ff; --pink:#ff66aa;
+  --text:#b8d0ee; --text2:#556070; --text3:#8aa0b8;
+  --mono:'Share Tech Mono',monospace; --sans:'Sarabun',sans-serif;
+  --rc0:#00c8ff; --rc1:#00ff88; --rc2:#ffaa00; --rc3:#aa66ff; --rc4:#ff66aa;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;}
+
+/* ── HEADER ── */
+#hdr{height:44px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;z-index:100;position:relative;}
+#hdr h1{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:2px;}
+.badge{font-family:var(--mono);font-size:9px;border:1px solid;padding:2px 7px;border-radius:2px;}
+.badge-sim{color:var(--warn);border-color:var(--warn);background:rgba(255,170,0,.08);}
+.badge-on{color:var(--accent2);border-color:var(--accent2);background:rgba(0,255,136,.08);}
+.hclock{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text2);}
+.pulse{width:6px;height:6px;background:var(--accent2);border-radius:50%;animation:pulse 1.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── TABS ── */
+#tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;gap:2px;}
+.tab{font-family:var(--mono);font-size:10px;padding:8px 16px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;letter-spacing:1px;transition:all .15s;white-space:nowrap;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* ── LAYOUT ── */
+#app{height:calc(100vh - 44px - 34px);display:flex;overflow:hidden;}
+.tab-content{display:none;width:100%;height:100%;}
+.tab-content.active{display:flex;}
+
+/* ── 3D MONITOR TAB ── */
+#tab-monitor{flex-direction:row;}
+#canvas-wrap{flex:1;position:relative;overflow:hidden;}
+#three-canvas{width:100%;height:100%;display:block;}
+#hud{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:6px;}
+.hud-btn{font-family:var(--mono);font-size:9px;background:rgba(8,9,13,.85);border:1px solid var(--border2);color:var(--text2);padding:5px 10px;cursor:pointer;border-radius:3px;letter-spacing:1px;transition:all .15s;}
+.hud-btn:hover{border-color:var(--accent);color:var(--accent);}
+.hud-btn.active{background:rgba(0,200,255,.12);border-color:var(--accent);color:var(--accent);}
+#cam-hint{position:absolute;bottom:10px;left:10px;font-family:var(--mono);font-size:9px;color:var(--text2);background:rgba(8,9,13,.8);border:1px solid var(--border);padding:6px 10px;border-radius:3px;line-height:1.8;}
+#speed-hud{position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:8px;background:rgba(8,9,13,.85);border:1px solid var(--border2);border-radius:3px;padding:5px 10px;font-family:var(--mono);font-size:9px;color:var(--text2);}
+#speed-hud input{width:60px;accent-color:var(--accent);}
+
+/* Monitor sidebar */
+#monitor-side{width:260px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.side-sec{border-bottom:1px solid var(--border);padding:10px 12px;}
+.sec-title{font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:2px;margin-bottom:8px;}
+.robot-card{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer;transition:all .15s;border:1px solid transparent;margin-bottom:2px;}
+.robot-card:hover{background:rgba(255,255,255,.04);border-color:var(--border2);}
+.robot-card.sel{background:rgba(0,200,255,.12);border-color:rgba(0,200,255,.5);box-shadow:0 0 0 1px rgba(0,200,255,.2);}
+.robot-card.sel .rc-name{color:var(--accent)!important;}
+.rc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.rc-name{font-family:var(--mono);font-size:10px;width:52px;flex-shrink:0;font-weight:600;}
+.rc-state{font-size:10px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rc-bat-wrap{width:48px;flex-shrink:0;}
+.rc-bat-bar{height:5px;background:var(--border2);border-radius:2px;overflow:hidden;}
+.rc-bat-fill{height:100%;border-radius:2px;transition:width .6s;}
+.rc-bat-val{font-family:var(--mono);font-size:8px;color:var(--text2);text-align:right;margin-top:1px;}
+.follow-btn{font-family:var(--mono);font-size:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);padding:2px 5px;border-radius:2px;cursor:pointer;flex-shrink:0;transition:all .15s;}
+.follow-btn:hover{border-color:var(--warn);color:var(--warn);}
+.follow-btn.on{border-color:var(--warn);color:var(--warn);background:rgba(255,170,0,.12);}
+#follow-label{position:absolute;top:46px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;color:var(--warn);background:rgba(8,9,13,.92);border:1px solid var(--warn);padding:3px 14px;border-radius:3px;display:none;z-index:20;white-space:nowrap;}
+
+.st-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.st-mini{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:5px 7px;}
+.st-mini-name{font-family:var(--mono);font-size:8px;color:var(--text2);margin-bottom:2px;}
+.st-mini-vals{display:flex;gap:6px;font-family:var(--mono);font-size:11px;}
+.pv{color:var(--accent2);} .fv{color:var(--danger);}
+
+/* ── FLEET TAB ── */
+#tab-fleet{flex-direction:column;overflow:hidden;}
+#fleet-grid{flex:1;overflow-y:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;}
+#fleet-grid::-webkit-scrollbar{width:4px;}
+#fleet-grid::-webkit-scrollbar-thumb{background:var(--border2);}
+.fleet-card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.fleet-card.active-sel{border-color:rgba(0,200,255,.4);}
+.fc-header{display:flex;align-items:center;gap:10px;}
+.fc-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.fc-name{font-family:var(--mono);font-size:13px;font-weight:600;}
+.fc-role{font-size:10px;color:var(--text2);margin-left:auto;}
+.fc-state-badge{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:2px;border:1px solid;}
+
+.fc-bat-row{display:flex;align-items:center;gap:8px;}
+.fc-bat-label{font-family:var(--mono);font-size:9px;color:var(--text2);width:28px;}
+.fc-bat-track{flex:1;height:8px;background:var(--border2);border-radius:4px;overflow:hidden;}
+.fc-bat-fill{height:100%;border-radius:4px;transition:width .5s;}
+.fc-bat-pct{font-family:var(--mono);font-size:10px;width:34px;text-align:right;}
+.fc-bat-info{display:flex;gap:12px;font-family:var(--mono);font-size:9px;color:var(--text2);}
+
+/* Wheel viz */
+.wheels-row{display:flex;gap:8px;}
+.wheel-panel{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px;text-align:center;}
+.wh-title{font-family:var(--mono);font-size:8px;color:var(--text2);margin-bottom:6px;}
+.wh-gauge{height:70px;background:var(--bg2);border-radius:3px;position:relative;overflow:hidden;border:1px solid var(--border);}
+.wh-center{position:absolute;bottom:50%;left:0;right:0;height:1px;background:var(--border2);}
+.wh-fill{position:absolute;left:0;right:0;transition:all .2s;border-radius:2px;}
+.wh-val{font-family:var(--mono);font-size:11px;margin-top:4px;}
+.wh-rpm{font-family:var(--mono);font-size:8px;color:var(--text2);margin-top:1px;}
+
+/* Sensors */
+.sensors-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.sensor-box{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px 8px;}
+.sb-label{font-family:var(--mono);font-size:8px;color:var(--text2);margin-bottom:3px;}
+.sb-val{font-family:var(--mono);font-size:12px;}
+.sb-bar{height:4px;background:var(--border2);border-radius:2px;margin-top:3px;overflow:hidden;}
+.sb-bar-fill{height:100%;border-radius:2px;transition:width .3s;}
+
+/* LiDAR canvas */
+.lidar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.lidar-canvas{border-radius:50%;background:var(--bg2);}
+
+/* Cargo */
+.cargo-list{display:flex;flex-direction:column;gap:4px;max-height:80px;overflow-y:auto;}
+.cargo-item{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:var(--mono);font-size:10px;}
+.ci-sn{color:var(--accent);flex:1;}
+.ci-dest{color:var(--text2);font-size:9px;}
+.ci-status{font-size:9px;padding:1px 6px;border-radius:2px;}
+
+/* ── TRACKING TAB ── */
+#tab-tracking{flex-direction:row;overflow:hidden;}
+#tracking-toolbar{padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+#sn-search{font-family:var(--mono);font-size:11px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:5px 10px;border-radius:3px;width:200px;}
+#sn-search:focus{outline:none;border-color:var(--accent);}
+.filter-btn{font-family:var(--mono);font-size:9px;padding:4px 10px;border:1px solid var(--border2);background:transparent;color:var(--text2);border-radius:3px;cursor:pointer;transition:all .15s;}
+.filter-btn:hover,.filter-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,200,255,.08);}
+#tracking-stats{display:flex;gap:16px;margin-left:auto;font-family:var(--mono);font-size:10px;}
+.tk-stat{color:var(--text2);} .tk-stat span{color:var(--text);}
+#sn-table-wrap{flex:1;overflow-y:auto;padding:0 14px 14px;}
+#sn-table-wrap::-webkit-scrollbar{width:4px;}
+#sn-table-wrap::-webkit-scrollbar-thumb{background:var(--border2);}
+#sn-table{width:100%;border-collapse:collapse;margin-top:10px;}
+#sn-table th{font-family:var(--mono);font-size:9px;color:var(--text2);text-align:left;padding:6px 8px;border-bottom:1px solid var(--border2);letter-spacing:1px;position:sticky;top:0;background:var(--bg);}
+#sn-table td{padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;vertical-align:middle;}
+#sn-table tr:hover td{background:rgba(255,255,255,.02);}
+.sn-code{font-family:var(--mono);font-size:10px;color:var(--accent);}
+.status-badge{font-family:var(--mono);font-size:8px;padding:2px 7px;border-radius:2px;border:1px solid;}
+.sb-transit{color:var(--warn);border-color:var(--warn);background:rgba(255,170,0,.1);}
+.sb-station{color:var(--accent);border-color:var(--accent);background:rgba(0,200,255,.1);}
+.sb-pass{color:var(--accent2);border-color:var(--accent2);background:rgba(0,255,136,.1);}
+.sb-fail{color:var(--danger);border-color:var(--danger);background:rgba(255,51,85,.1);}
+.sb-queue{color:var(--text2);border-color:var(--border2);background:transparent;}
+
+/* ── ANALYTICS TAB ── */
+#tab-analytics{flex-direction:row;overflow:hidden;}
+#analytics-left{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px;}
+#analytics-left::-webkit-scrollbar{width:4px;}
+#analytics-left::-webkit-scrollbar-thumb{background:var(--border2);}
+#analytics-right{width:320px;background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:14px;}
+
+.an-card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:14px;}
+.an-title{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:12px;}
+.station-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);}
+.station-row:last-child{border:none;}
+.sr-name{font-family:var(--mono);font-size:10px;width:70px;flex-shrink:0;}
+.sr-bar-wrap{flex:1;height:12px;background:var(--border2);border-radius:2px;position:relative;overflow:hidden;}
+.sr-bar-pass{height:100%;background:var(--accent2);border-radius:2px 0 0 2px;float:left;}
+.sr-bar-fail{height:100%;background:var(--danger);border-radius:0 2px 2px 0;float:left;}
+.sr-pct{font-family:var(--mono);font-size:9px;color:var(--text2);width:36px;text-align:right;}
+
+.test-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.tt-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;}
+.tt-name{font-family:var(--mono);font-size:9px;color:var(--text2);margin-bottom:8px;letter-spacing:1px;}
+.tt-big{font-family:var(--mono);font-size:22px;}
+.tt-sub{font-size:10px;color:var(--text2);margin-top:2px;}
+.tt-rate{font-family:var(--mono);font-size:10px;margin-top:6px;}
+
+.comp-fail-list{display:flex;flex-direction:column;gap:4px;}
+.comp-row{display:flex;align-items:center;gap:8px;padding:4px 0;}
+.comp-id{font-family:var(--mono);font-size:10px;color:var(--warn);width:40px;}
+.comp-bar-wrap{flex:1;height:8px;background:var(--border2);border-radius:2px;overflow:hidden;}
+.comp-bar{height:100%;background:var(--danger);border-radius:2px;transition:width .5s;}
+.comp-cnt{font-family:var(--mono);font-size:10px;color:var(--text2);width:24px;text-align:right;}
+
+/* detail panel right */
+.sn-detail-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;margin-bottom:8px;}
+.sdc-title{font-family:var(--mono);font-size:9px;color:var(--accent);margin-bottom:8px;letter-spacing:1px;}
+.sdc-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:10px;}
+.sdc-row:last-child{border:none;}
+.sdc-k{color:var(--text2);}
+.sdc-v{font-family:var(--mono);}
+.test-step{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);}
+.test-step:last-child{border:none;}
+.ts-icon{width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;flex-shrink:0;}
+.ts-pass-icon{background:rgba(0,255,136,.2);color:var(--accent2);}
+.ts-fail-icon{background:rgba(255,51,85,.2);color:var(--danger);}
+.ts-name{font-size:10px;flex:1;}
+.ts-detail{font-family:var(--mono);font-size:9px;color:var(--text2);}
+
+/* ── LOG TAB ── */
+#tab-log{flex-direction:row;overflow:hidden;}
+#log-main{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:14px;}
+#log-toolbar{display:flex;gap:8px;margin-bottom:10px;align-items:center;}
+#log-search{font-family:var(--mono);font-size:11px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:5px 10px;border-radius:3px;width:180px;}
+#log-search:focus{outline:none;border-color:var(--accent);}
+#log-list{flex:1;overflow-y:auto;font-family:var(--mono);font-size:10px;display:flex;flex-direction:column;gap:2px;}
+#log-list::-webkit-scrollbar{width:4px;}
+#log-list::-webkit-scrollbar-thumb{background:var(--border2);}
+.log-entry{display:flex;gap:10px;padding:4px 8px;border-radius:3px;border-left:2px solid transparent;align-items:flex-start;}
+.log-entry:hover{background:rgba(255,255,255,.02);}
+.log-entry.info{border-left-color:var(--accent);}
+.log-entry.warn{border-left-color:var(--warn);}
+.log-entry.error{border-left-color:var(--danger);}
+.log-entry.success{border-left-color:var(--accent2);}
+.le-time{color:var(--text2);flex-shrink:0;width:70px;}
+.le-tag{padding:1px 5px;border-radius:2px;font-size:8px;flex-shrink:0;width:48px;text-align:center;}
+.tag-amr{background:rgba(0,200,255,.15);color:var(--accent);}
+.tag-sys{background:rgba(170,102,255,.15);color:var(--purple);}
+.tag-sta{background:rgba(0,255,136,.15);color:var(--accent2);}
+.tag-err{background:rgba(255,51,85,.15);color:var(--danger);}
+.le-msg{color:var(--text);flex:1;}
+
+#log-settings{width:280px;background:var(--panel);border-left:1px solid var(--border);padding:14px;overflow-y:auto;}
+.set-sec{margin-bottom:16px;}
+.set-title{font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:2px;margin-bottom:10px;}
+.set-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;}
+.set-row:last-child{border:none;}
+.set-k{color:var(--text2);}
+.toggle{width:32px;height:18px;background:var(--border2);border-radius:9px;position:relative;cursor:pointer;transition:background .2s;}
+.toggle.on{background:var(--accent);}
+.toggle-knob{width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;}
+.toggle.on .toggle-knob{left:16px;}
+.set-input{font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:3px 7px;border-radius:3px;width:70px;text-align:right;}
+.set-input:focus{outline:none;border-color:var(--accent);}
+
+/* info row util */
+.info-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;}
+.info-row:last-child{border:none;}
+.ik{color:var(--text2);} .iv{font-family:var(--mono);}
+
+/* 100 pieces grid */
+.pc-cell{aspect-ratio:1;border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:7px;font-weight:700;cursor:pointer;border:1px solid transparent;transition:transform .15s;position:relative;}
+.pc-cell:hover{transform:scale(1.3);z-index:10;}
+.pc-wait{background:var(--border);color:var(--text2);border-color:var(--border2);}
+.pc-transit{background:rgba(255,170,0,.2);color:#ffaa00;border-color:#ffaa00;}
+.pc-work{background:rgba(0,200,255,.2);color:#00c8ff;border-color:#00c8ff;}
+.pc-pass{background:rgba(0,255,136,.2);color:#00ff88;border-color:#00ff88;}
+.pc-fail{background:rgba(255,51,85,.2);color:#ff3355;border-color:#ff3355;}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <h1>◈ AMR FACTORY 3D CONTROL</h1>
+  <span class="badge badge-sim">SIMULATION</span>
+  <span class="badge badge-on"><span class="pulse" style="display:inline-block;margin-right:5px;vertical-align:middle"></span>ONLINE</span>
+  <span style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-left:8px;" id="hdr-stats"></span>
+  <div class="hclock" id="clock"></div>
+</div>
+
+<div id="tabs">
+  <div class="tab active" onclick="switchTab('monitor')">🏭 MONITOR</div>
+  <div class="tab" onclick="switchTab('fleet')">🤖 FLEET</div>
+  <div class="tab" onclick="switchTab('tracking')">📦 TRACKING</div>
+  <div class="tab" onclick="switchTab('analytics')">📊 ANALYTICS</div>
+  <div class="tab" onclick="switchTab('log')">📋 LOG</div>
+</div>
+
+<div id="app">
+
+<!-- ══ MONITOR TAB ══ -->
+<div id="tab-monitor" class="tab-content active">
+  <div id="canvas-wrap">
+    <canvas id="three-canvas"></canvas>
+    <div id="follow-label"></div>
+    <div id="hud">
+      <button class="hud-btn active" id="btn-run" onclick="toggleRun()">▶ RUN</button>
+      <button class="hud-btn" onclick="addTask()">+ TASK</button>
+      <button class="hud-btn" onclick="resetSim()">↺ RESET</button>
+      <button class="hud-btn" onclick="camHome()">⌂ HOME VIEW</button>
+      <button class="hud-btn" id="btn-follow" onclick="toggleFollow()">◎ FOLLOW</button>
+    </div>
+    <div id="cam-hint">W/S — เดินหน้า/หลัง &nbsp; A/D — ซ้าย/ขวา<br>Mouse drag — หมุน &nbsp; Scroll — ซูม<br>Click รายการ → เลือกรถ &nbsp; F — follow mode</div>
+    <div id="speed-hud">
+      SPEED <input type="range" id="spd-range" min="0.5" max="6" step="0.5" value="1" oninput="setSpeed(this.value)">
+      <span id="spd-val" style="color:var(--accent)">1x</span>
+    </div>
+    <!-- Timer + Progress HUD -->
+    <div id="timer-hud" style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(8,9,13,.9);border:1px solid var(--border2);border-radius:4px;padding:6px 16px;font-family:var(--mono);font-size:10px;color:var(--text2);display:flex;align-items:center;gap:14px;z-index:10;">
+      <span>⏱ <span id="timer-label">รอเริ่ม</span></span>
+      <span style="font-size:14px;color:var(--accent)" id="timer-display">00:00:00</span>
+      <span id="timer-progress" style="color:var(--accent2)">0/100</span>
+    </div>
+  </div>
+  <div id="monitor-side">
+    <div class="side-sec">
+      <div class="sec-title">◈ FLEET</div>
+      <div id="fleet-list-monitor"></div>
+    </div>
+    <div class="side-sec">
+      <div class="sec-title">◈ STATIONS</div>
+      <div class="st-mini-grid" id="station-mini"></div>
+    </div>
+    <div class="side-sec" style="flex:1;overflow-y:auto;">
+      <div class="sec-title">◈ 100 ชิ้นงาน</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;font-family:var(--mono);font-size:8px;">
+        <span style="color:#556070">■ รอ</span>
+        <span style="color:#ffaa00">■ ขนส่ง</span>
+        <span style="color:#00c8ff">■ ทำงาน</span>
+        <span style="color:#00ff88">■ Pass</span>
+        <span style="color:#ff3355">■ Fail</span>
+      </div>
+      <div id="pieces-100" style="display:grid;grid-template-columns:repeat(10,1fr);gap:2px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FLEET TAB ══ -->
+<div id="tab-fleet" class="tab-content">
+  <div id="fleet-grid"></div>
+</div>
+
+<!-- ══ TRACKING TAB ══ -->
+<div id="tab-tracking" class="tab-content" style="flex-direction:row;">
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+  <div id="tracking-toolbar">
+    <input id="sn-search" placeholder="ค้นหา Serial Number..." oninput="filterSN(this.value)">
+    <button class="filter-btn active" onclick="setFilter('all',this)">ทั้งหมด</button>
+    <button class="filter-btn" onclick="setFilter('transit',this)">In Transit</button>
+    <button class="filter-btn" onclick="setFilter('station',this)">At Station</button>
+    <button class="filter-btn" onclick="setFilter('pass',this)">Pass</button>
+    <button class="filter-btn" onclick="setFilter('fail',this)">Fail</button>
+    <div id="tracking-stats">
+      <span class="tk-stat">Total: <span id="tk-total">0</span></span>
+      <span class="tk-stat" style="color:var(--accent2)">Pass: <span id="tk-pass">0</span></span>
+      <span class="tk-stat" style="color:var(--danger)">Fail: <span id="tk-fail">0</span></span>
+      <span class="tk-stat" style="color:var(--warn)">In Transit: <span id="tk-transit">0</span></span>
+    </div>
+  </div>
+  <div id="sn-table-wrap">
+    <table id="sn-table">
+      <thead>
+        <tr>
+          <th>SERIAL NUMBER</th><th>สถานะ</th><th>ตำแหน่ง</th><th>รถ AMR</th>
+          <th>สถานีปัจจุบัน</th><th>ICT</th><th>FCT</th><th>COMPONENT</th><th>เวลาอัพเดท</th>
+        </tr>
+      </thead>
+      <tbody id="sn-tbody"></tbody>
+    </table>
+  </div>
+  </div>
+  <div id="sn-detail-panel" style="width:300px;background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:14px;flex-shrink:0;">
+    <div style="font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:2px;margin-bottom:10px;">◈ SN DETAIL</div>
+    <div id="sn-detail-content" style="color:var(--text2);font-size:11px;text-align:center;padding:20px 0;">คลิก SN เพื่อดูรายละเอียด</div>
+  </div>
+</div>
+
+<!-- ══ ANALYTICS TAB ══ -->
+<div id="tab-analytics" class="tab-content">
+  <div id="analytics-left">
+    <div class="an-card">
+      <div class="an-title">◈ PASS / FAIL BY STATION</div>
+      <div id="station-bars"></div>
+    </div>
+    <div class="an-card">
+      <div class="an-title">◈ TEST TYPE SUMMARY</div>
+      <div class="test-type-grid" id="test-type-grid"></div>
+    </div>
+    <div class="an-card">
+      <div class="an-title">◈ TOP COMPONENT FAILURES</div>
+      <div class="comp-fail-list" id="comp-fail-list"></div>
+    </div>
+  </div>
+  <div id="analytics-right">
+    <div class="sec-title" style="font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:2px;margin-bottom:12px;">◈ SN DETAIL VIEWER</div>
+    <input id="an-sn-input" class="set-input" style="width:100%;margin-bottom:10px;font-size:11px;" placeholder="กรอก SN..." oninput="lookupSN(this.value)">
+    <div id="sn-detail-view"></div>
+  </div>
+</div>
+
+<!-- ══ LOG TAB ══ -->
+<div id="tab-log" class="tab-content">
+  <div id="log-main">
+    <div id="log-toolbar">
+      <input id="log-search" placeholder="ค้นหา log..." oninput="filterLog(this.value)">
+      <button class="filter-btn active" onclick="setLogFilter('all',this)">ทั้งหมด</button>
+      <button class="filter-btn" onclick="setLogFilter('AMR',this)">AMR</button>
+      <button class="filter-btn" onclick="setLogFilter('SYS',this)">SYSTEM</button>
+      <button class="filter-btn" onclick="setLogFilter('ERR',this)">ERROR</button>
+      <button class="hud-btn" style="margin-left:auto;" onclick="clearLog()">✕ CLEAR</button>
+    </div>
+    <div id="log-list"></div>
+  </div>
+  <div id="log-settings">
+    <div class="set-sec">
+      <div class="set-title">◈ SIMULATION SETTINGS</div>
+      <div class="set-row"><span class="set-k">ความเร็วรถ (m/s)</span><input class="set-input" id="cfg-speed" value="1.5" type="number" step="0.1"></div>
+      <div class="set-row"><span class="set-k">อัตราชาร์จ (%/tick)</span><input class="set-input" id="cfg-charge" value="1.2" type="number" step="0.1"></div>
+      <div class="set-row"><span class="set-k">แบตต่ำ threshold</span><input class="set-input" id="cfg-lowbat" value="25" type="number"></div>
+      <div class="set-row"><span class="set-k">Fail rate (%)</span><input class="set-input" id="cfg-failrate" value="15" type="number"></div>
+      <div class="set-row"><span class="set-k">Auto-assign งาน</span><div class="toggle on" id="tog-auto" onclick="toggleSetting('tog-auto')"><div class="toggle-knob"></div></div></div>
+      <div class="set-row"><span class="set-k">แสดง LiDAR rays</span><div class="toggle on" id="tog-lidar" onclick="toggleSetting('tog-lidar')"><div class="toggle-knob"></div></div></div>
+    </div>
+    <div class="set-sec">
+      <div class="set-title">◈ DISPLAY SETTINGS</div>
+      <div class="set-row"><span class="set-k">แสดง Grid</span><div class="toggle on" id="tog-grid" onclick="toggleSetting('tog-grid')"><div class="toggle-knob"></div></div></div>
+      <div class="set-row"><span class="set-k">แสดง Labels</span><div class="toggle on" id="tog-labels" onclick="toggleSetting('tog-labels')"><div class="toggle-knob"></div></div></div>
+      <div class="set-row"><span class="set-k">Shadow</span><div class="toggle on" id="tog-shadow" onclick="toggleSetting('tog-shadow')"><div class="toggle-knob"></div></div></div>
+    </div>
+    <div class="set-sec">
+      <div class="set-title">◈ SYSTEM INFO</div>
+      <div id="sys-info"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- #app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// GLOBAL STATE
+// ═══════════════════════════════════════════════════════════
+let running = true, simSpeed = 1, followMode = false;
+let selectedRobotId = 0;
+let selectedSN = null;
+let logs = [], logFilter = 'all', logSearch = '';
+let snFilter = 'all', snSearch = '';
+let tasksDone = 0;
+let simStartTime = null, simEndTime = null;
+
+const ROBOT_COLORS_HEX = [0x00c8ff, 0x00ff88, 0xffaa00, 0xaa66ff, 0xff66aa];
+const ROBOT_COLORS_CSS = ['#00c8ff','#00ff88','#ffaa00','#aa66ff','#ff66aa'];
+const ROBOT_NAMES = ['AMR-01','AMR-02','AMR-03','AMR-04','AMR-05'];
+const ROBOT_ROLES = ['Line-A','Line-B','Line-C','Line-D','Standby'];
+
+const LINE_COLORS = [0x00c8ff, 0x00ff88, 0xffaa00, 0xaa66ff];
+
+// Stations layout (x,z in 3D space, y=0 floor)
+const STATIONS_DEF = [
+  // Line A
+  {id:'A1',label:'ST-A1\nIncoming',  x:-18, z:-12, line:'A', type:'station'},
+  {id:'A2',label:'ST-A2\nAssembly',  x: -6, z:-12, line:'A', type:'station'},
+  {id:'A3',label:'ST-A3\nTesting',   x:  6, z:-12, line:'A', type:'station'},
+  // Line B
+  {id:'B1',label:'ST-B1\nIncoming',  x:-18, z: -4, line:'B', type:'station'},
+  {id:'B2',label:'ST-B2\nAssembly',  x: -6, z: -4, line:'B', type:'station'},
+  {id:'B3',label:'ST-B3\nTesting',   x:  6, z: -4, line:'B', type:'station'},
+  // Line C
+  {id:'C1',label:'ST-C1\nIncoming',  x:-18, z:  4, line:'C', type:'station'},
+  {id:'C2',label:'ST-C2\nAssembly',  x: -6, z:  4, line:'C', type:'station'},
+  {id:'C3',label:'ST-C3\nTesting',   x:  6, z:  4, line:'C', type:'station'},
+  // Line D
+  {id:'D1',label:'ST-D1\nIncoming',  x:-18, z: 12, line:'D', type:'station'},
+  {id:'D2',label:'ST-D2\nAssembly',  x: -6, z: 12, line:'D', type:'station'},
+  {id:'D3',label:'ST-D3\nTesting',   x:  6, z: 12, line:'D', type:'station'},
+  // Shared downstream
+  {id:'PK',label:'ST-PK\nPacking',   x: 16, z:  0, line:'S', type:'station'},
+  {id:'OUT',label:'ST-OUT\nOutgoing', x: 22, z:  0, line:'S', type:'station'},
+  // Support
+  {id:'HOME',label:'HOME\nBase',      x:-24, z:  0, line:'S', type:'home'},
+  {id:'CHG1',label:'CHG-1',           x:-22, z: -4, line:'S', type:'charger'},
+  {id:'CHG2',label:'CHG-2',           x:-22, z:  4, line:'S', type:'charger'},
+];
+
+const ROUTES = {
+  A: ['A1','A2','A3','PK','OUT'],
+  B: ['B1','B2','B3','PK','OUT'],
+  C: ['C1','C2','C3','PK','OUT'],
+  D: ['D1','D2','D3','PK','OUT'],
+};
+
+const PROD_STATION_IDS = ['A1','A2','A3','B1','B2','B3','C1','C2','C3','D1','D2','D3','PK','OUT'];
+
+const COMPONENTS = ['C12','R5','U3','C24','R18','U7','L2','C8','R31','U12','C45','R7'];
+const ICT_TESTS  = ['Continuity','Isolation','Short Circuit','Open Circuit'];
+const FCT_TESTS  = ['Power On','Comm Interface','Signal Output','Memory Test','Clock Accuracy'];
+
+// PCB component layout (x,y = 0-1 relative, w,h = 0-1 relative)
+const PCB_LAYOUT = [
+  {id:'U3',  x:.38, y:.25, w:.18, h:.16, type:'ic'},
+  {id:'U7',  x:.38, y:.55, w:.18, h:.16, type:'ic'},
+  {id:'U12', x:.65, y:.60, w:.14, h:.12, type:'ic'},
+  {id:'C12', x:.12, y:.18, w:.08, h:.05, type:'cap'},
+  {id:'C24', x:.70, y:.18, w:.08, h:.05, type:'cap'},
+  {id:'C8',  x:.72, y:.42, w:.07, h:.05, type:'cap'},
+  {id:'C45', x:.12, y:.72, w:.08, h:.05, type:'cap'},
+  {id:'R5',  x:.25, y:.15, w:.10, h:.04, type:'res'},
+  {id:'R18', x:.55, y:.15, w:.10, h:.04, type:'res'},
+  {id:'R31', x:.18, y:.60, w:.10, h:.04, type:'res'},
+  {id:'R7',  x:.25, y:.78, w:.10, h:.04, type:'res'},
+  {id:'L2',  x:.12, y:.42, w:.10, h:.08, type:'ind'},
+];
+
+// ═══════════════════════════════════════════════════════════
+// SIMULATION DATA
+// ═══════════════════════════════════════════════════════════
+let robots = [];
+let stationData = {};
+let serialNumbers = [];
+
+function genSN(i) {
+  return 'SN-' + String(i+1).padStart(4,'0') + '-' + Math.random().toString(36).slice(2,5).toUpperCase();
+}
+
+function initSerialNumbers() {
+  serialNumbers = Array.from({length:100}, (_, i) => {
+    const failed = Math.random() < 0.15;
+    const failComponents = failed ? [COMPONENTS[Math.floor(Math.random()*COMPONENTS.length)]] : [];
+    const ictFail = failed && Math.random()<0.4 ? ICT_TESTS[Math.floor(Math.random()*ICT_TESTS.length)] : null;
+    const fctFail = failed && Math.random()<0.5 ? FCT_TESTS[Math.floor(Math.random()*FCT_TESTS.length)] : null;
+    return {
+      sn: genSN(i), status: 'wait', station: null, robotId: null,
+      ict: ictFail ? 'FAIL' : 'PASS',
+      fct: fctFail ? 'FAIL' : 'PASS',
+      component: failComponents.length ? failComponents.join(',') : '—',
+      ictDetail: ictFail, fctDetail: fctFail,
+      failComp: failComponents,
+      ts: '—',
+      testSteps: generateTestSteps(failed, ictFail, fctFail, failComponents),
+    };
+  });
+}
+
+function generateTestSteps(failed, ictFail, fctFail, failComps) {
+  const steps = [
+    {name:'Visual Inspection', result:'pass', detail:'ไม่พบรอยเสียหาย'},
+    {name:'ICT — '+( ictFail||'Continuity'), result: ictFail?'fail':'pass', detail: ictFail?`ตรวจพบ short ที่ ${ictFail}`:'ผ่านทุก node'},
+    {name:'FCT — Power On', result:'pass', detail:'3.3V, 5V, 12V ปกติ'},
+    {name:'FCT — '+(fctFail||'Signal Output'), result: fctFail?'fail':'pass', detail: fctFail?`Output drift ±8%`:'Signal ปกติ'},
+    {name:'Component — '+(failComps[0]||'All'), result: failComps.length?'fail':'pass', detail: failComps.length?`${failComps[0]} ค่า ESR ผิดปกติ`:'ทุก component ปกติ'},
+  ];
+  return steps;
+}
+
+function initStations() {
+  PROD_STATION_IDS.forEach(id => {
+    stationData[id] = {
+      pass: Math.floor(Math.random()*80)+10,
+      fail: Math.floor(Math.random()*20)+2,
+      queue: Math.floor(Math.random()*5),
+      processing: 0,
+    };
+  });
+}
+
+function initRobots() {
+  robots = ROBOT_NAMES.map((name, i) => {
+    const role = ROBOT_ROLES[i];
+    const line = i < 4 ? String.fromCharCode(65+i) : 'A';
+    return {
+      id: i, name, color: ROBOT_COLORS_CSS[i], colorHex: ROBOT_COLORS_HEX[i],
+      role, line, isStandby: i===4,
+      x: -24 + i*2, z: -2 + i*1.5, y: 0,
+      tx: 0, tz: 0, angle: 0,
+      battery: 65 + Math.random()*35,
+      voltage: (22 + Math.random()*4).toFixed(1),
+      state: 'idle', stateLabel: 'รอคำสั่ง',
+      substate: null,
+      routeIdx: 0, destId: 'HOME',
+      leftWheel: 0, rightWheel: 0,
+      leftRPM: 0, rightRPM: 0,
+      lidar: [], lidarDists: [],
+      speed: 0,
+      pitch: 0, roll: 0,
+      bumper: false, cliff: false,
+      cargo: [],
+      tasksCompleted: 0,
+      initialized: false,
+      workTimer: 0,
+      mesh: null,
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// THREE.JS SCENE
+// ═══════════════════════════════════════════════════════════
+let scene, camera, renderer, animFrame;
+let robotMeshes = [], stationMeshes = {}, gridHelper, labelSprites = {};
+let robotBodyMeshes = [], robotWheelMeshes = [];
+let lidarLines = [];
+
+const camState = {
+  theta: 0.4, phi: 1.1, radius: 55,
+  target: new THREE.Vector3(0,0,0),
+  isDragging: false, lastMX: 0, lastMY: 0,
+  moveF:false, moveB:false, moveL:false, moveR:false,
+};
+
+function initThree() {
+  const canvas = document.getElementById('three-canvas');
+  const wrap   = document.getElementById('canvas-wrap');
+
+  renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x08090d);
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x08090d, 60, 120);
+
+  camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
+  updateCamera();
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0x223344, 1.2);
+  scene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0x88aaff, 1.5);
+  dirLight.position.set(20, 30, 10);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(2048,2048);
+  dirLight.shadow.camera.near = 1;
+  dirLight.shadow.camera.far = 120;
+  dirLight.shadow.camera.left = -40;
+  dirLight.shadow.camera.right = 40;
+  dirLight.shadow.camera.top = 30;
+  dirLight.shadow.camera.bottom = -30;
+  scene.add(dirLight);
+  const pointLight = new THREE.PointLight(0x00c8ff, 0.6, 40);
+  pointLight.position.set(0, 15, 0);
+  scene.add(pointLight);
+
+  // Floor
+  const floorGeo = new THREE.PlaneGeometry(80, 60);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x0d1520, roughness: 0.9, metalness: 0.1,
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI/2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Grid
+  gridHelper = new THREE.GridHelper(80, 40, 0x1a2535, 0x111827);
+  gridHelper.position.y = 0.01;
+  scene.add(gridHelper);
+
+  // Walls
+  buildWalls();
+
+  // Line corridors
+  buildLineCorridors();
+
+  // Stations
+  buildStations();
+
+  // Robots
+  buildRobots();
+
+  // LiDAR lines placeholder
+  buildLidarLines();
+
+  // Resize
+  resizeThree();
+  window.addEventListener('resize', resizeThree);
+
+  // Controls
+  setupControls(canvas);
+
+  // Start render loop
+  renderThree();
+}
+
+function buildWalls() {
+  const wMat = new THREE.MeshStandardMaterial({color:0x0f1a2e, roughness:0.8});
+  const wallData = [
+    {w:82, h:3, d:0.4, x:0, z:-30.2},
+    {w:82, h:3, d:0.4, x:0, z: 30.2},
+    {w:0.4, h:3, d:60, x:-41, z:0},
+    {w:0.4, h:3, d:60, x: 41, z:0},
+  ];
+  wallData.forEach(w => {
+    const g = new THREE.BoxGeometry(w.w, w.h, w.d);
+    const m = new THREE.Mesh(g, wMat);
+    m.position.set(w.x, w.h/2, w.z);
+    m.receiveShadow = true;
+    scene.add(m);
+  });
+}
+
+function buildLineCorridors() {
+  const zLines = [-8, 0, 8];
+  zLines.forEach(z => {
+    const g = new THREE.PlaneGeometry(52, 0.15);
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({color:0x1a2535}));
+    m.rotation.x = -Math.PI/2;
+    m.position.set(-3, 0.02, z);
+    scene.add(m);
+  });
+  // Line labels (colored strips)
+  const lineColors = [0x00c8ff33, 0x00ff8833, 0xffaa0033, 0xaa66ff33];
+  [-12,-4,4,12].forEach((z,i) => {
+    const g = new THREE.PlaneGeometry(48, 6);
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+      color: lineColors[i], transparent:true, opacity:0.5, side:THREE.DoubleSide
+    }));
+    m.rotation.x = -Math.PI/2;
+    m.position.set(-4, 0.015, z);
+    scene.add(m);
+  });
+}
+
+function buildStations() {
+  STATIONS_DEF.forEach(st => {
+    const isCharger = st.type === 'charger';
+    const isHome    = st.type === 'home';
+    const col = isCharger ? 0xffaa00 : isHome ? 0x00ff88 : 0x00c8ff;
+    const h = isHome ? 0.3 : 1.0;
+
+    // Platform
+    const platGeo = new THREE.BoxGeometry(4, h, 4);
+    const platMat = new THREE.MeshStandardMaterial({
+      color: isCharger ? 0x1a1000 : isHome ? 0x001a10 : 0x001422,
+      roughness: 0.6, metalness: 0.2,
+      emissive: col, emissiveIntensity: 0.05,
+    });
+    const plat = new THREE.Mesh(platGeo, platMat);
+    plat.position.set(st.x, h/2, st.z);
+    plat.castShadow = true;
+    plat.receiveShadow = true;
+    scene.add(plat);
+    stationMeshes[st.id] = plat;
+
+    // Edge glow ring
+    const ringGeo = new THREE.RingGeometry(2.2, 2.5, 32);
+    const ringMat = new THREE.MeshBasicMaterial({color: col, side:THREE.DoubleSide, transparent:true, opacity:0.4});
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI/2;
+    ring.position.set(st.x, 0.03, st.z);
+    scene.add(ring);
+
+    // Point light per station
+    const pl = new THREE.PointLight(col, 0.3, 8);
+    pl.position.set(st.x, 2, st.z);
+    scene.add(pl);
+
+    // Simple label pillar
+    if (!isCharger && !isHome) {
+      const pillarGeo = new THREE.CylinderGeometry(0.05, 0.05, 3, 8);
+      const pillarMat = new THREE.MeshStandardMaterial({color: col, emissive: col, emissiveIntensity: 0.8});
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(st.x, 1.5+h, st.z);
+      scene.add(pillar);
+    }
+  });
+}
+
+function buildRobots() {
+  robotMeshes = [];
+  robotBodyMeshes = [];
+  robotWheelMeshes = [];
+
+  robots.forEach(robot => {
+    const group = new THREE.Group();
+
+    // Body
+    const bodyGeo = new THREE.BoxGeometry(1.2, 0.5, 1.6);
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0x111827, roughness: 0.4, metalness: 0.6,
+      emissive: robot.colorHex, emissiveIntensity: 0.15,
+    });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.35;
+    body.castShadow = true;
+    scene.add; // handled via group
+    group.add(body);
+    robotBodyMeshes.push(body);
+
+    // Top panel (colored)
+    const topGeo = new THREE.BoxGeometry(1.0, 0.08, 1.4);
+    const topMat = new THREE.MeshStandardMaterial({
+      color: robot.colorHex, emissive: robot.colorHex, emissiveIntensity: 0.6,
+      roughness: 0.3, metalness: 0.8,
+    });
+    const top = new THREE.Mesh(topGeo, topMat);
+    top.position.y = 0.64;
+    group.add(top);
+
+    // LiDAR sensor dome
+    const lidarGeo = new THREE.SphereGeometry(0.2, 12, 8, 0, Math.PI*2, 0, Math.PI/2);
+    const lidarMat = new THREE.MeshStandardMaterial({
+      color: 0x223344, emissive: 0x00c8ff, emissiveIntensity: 0.4,
+      roughness: 0.2, metalness: 0.9,
+    });
+    const lidarDome = new THREE.Mesh(lidarGeo, lidarMat);
+    lidarDome.position.set(0, 0.75, 0);
+    group.add(lidarDome);
+
+    // Wheels (4)
+    const wGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.12, 16);
+    const wMat = new THREE.MeshStandardMaterial({color:0x1a1a1a, roughness:0.9});
+    const wheelPositions = [[-0.68,-0.0,0.5],[0.68,-0.0,0.5],[-0.68,-0.0,-0.5],[0.68,-0.0,-0.5]];
+    const wheels = [];
+    wheelPositions.forEach(([wx,wy,wz]) => {
+      const w = new THREE.Mesh(wGeo, wMat);
+      w.rotation.z = Math.PI/2;
+      w.position.set(wx, wy, wz);
+      w.castShadow = true;
+      group.add(w);
+      wheels.push(w);
+    });
+    robotWheelMeshes.push(wheels);
+
+    // Direction indicator
+    const arrowGeo = new THREE.ConeGeometry(0.15, 0.4, 8);
+    const arrowMat = new THREE.MeshBasicMaterial({color: robot.colorHex});
+    const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+    arrow.rotation.z = -Math.PI/2;
+    arrow.position.set(0.7, 0.35, 0);
+    group.add(arrow);
+
+    group.position.set(robot.x, 0, robot.z);
+    group.castShadow = true;
+    scene.add(group);
+    robotMeshes.push(group);
+    robot.mesh = group;
+  });
+}
+
+function buildLidarLines() {
+  lidarLines = robots.map(() => {
+    const lines = [];
+    for (let i=0;i<36;i++) {
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,3)
+      ]);
+      const mat = new THREE.LineBasicMaterial({color:0x00c8ff, transparent:true, opacity:0.25});
+      const line = new THREE.Line(geo, mat);
+      line.visible = false;
+      scene.add(line);
+      lines.push(line);
+    }
+    return lines;
+  });
+}
+
+function resizeThree() {
+  const wrap = document.getElementById('canvas-wrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+function updateCamera() {
+  const t = camState.target;
+  camera.position.set(
+    t.x + camState.radius * Math.sin(camState.theta) * Math.sin(camState.phi),
+    camState.radius * Math.cos(camState.phi),
+    t.z + camState.radius * Math.cos(camState.theta) * Math.sin(camState.phi),
+  );
+  camera.lookAt(t);
+}
+
+function camHome() {
+  camState.theta = 0.4; camState.phi = 1.0; camState.radius = 55;
+  camState.target.set(0,0,0);
+  followMode = false;
+  document.getElementById('btn-follow').classList.remove('active');
+}
+
+function toggleFollow() {
+  followMode = !followMode;
+  document.getElementById('btn-follow').classList.toggle('active', followMode);
+  const lbl = document.getElementById('follow-label');
+  if (followMode && robots[selectedRobotId]) {
+    lbl.textContent = `📷 FOLLOW: ${robots[selectedRobotId].name}`;
+    lbl.style.display = 'block';
+  } else {
+    lbl.style.display = 'none';
+  }
+}
+
+function setupControls(canvas) {
+  canvas.addEventListener('mousedown', e => {
+    camState.isDragging = true;
+    camState.lastMX = e.clientX; camState.lastMY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { camState.isDragging = false; });
+  window.addEventListener('mousemove', e => {
+    if (!camState.isDragging) return;
+    const dx = e.clientX - camState.lastMX;
+    const dy = e.clientY - camState.lastMY;
+    camState.theta -= dx * 0.005;
+    camState.phi = Math.max(0.1, Math.min(Math.PI*0.48, camState.phi + dy*0.005));
+    camState.lastMX = e.clientX; camState.lastMY = e.clientY;
+  });
+  canvas.addEventListener('wheel', e => {
+    camState.radius = Math.max(5, Math.min(100, camState.radius + e.deltaY * 0.05));
+    e.preventDefault();
+  }, {passive:false});
+
+  window.addEventListener('keydown', e => {
+    if (['w','s','a','d'].includes(e.key.toLowerCase())) {
+      const k = e.key.toLowerCase();
+      if (k==='w') camState.moveF=true;
+      if (k==='s') camState.moveB=true;
+      if (k==='a') camState.moveL=true;
+      if (k==='d') camState.moveR=true;
+    }
+    if (e.key==='f'||e.key==='F') toggleFollow();
+    if (e.key==='h'||e.key==='H') camHome();
+    // Number keys 1-5 select robot
+    if (e.key>='1'&&e.key<='5') selectRobot(parseInt(e.key)-1);
+  });
+  window.addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k==='w') camState.moveF=false;
+    if (k==='s') camState.moveB=false;
+    if (k==='a') camState.moveL=false;
+    if (k==='d') camState.moveR=false;
+  });
+}
+
+let lastRenderTime = 0;
+let accumulator3d = 0;
+const TICK_MS = 300;
+
+function renderThree(now=0) {
+  animFrame = requestAnimationFrame(renderThree);
+  const dt = now - lastRenderTime; lastRenderTime = now;
+
+  // Camera movement
+  const moveSpeed = 0.15;
+  const fwd = new THREE.Vector3(
+    Math.sin(camState.theta), 0, Math.cos(camState.theta)
+  );
+  const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
+  if (camState.moveF) camState.target.addScaledVector(fwd, -moveSpeed);
+  if (camState.moveB) camState.target.addScaledVector(fwd,  moveSpeed);
+  if (camState.moveL) camState.target.addScaledVector(right, -moveSpeed);
+  if (camState.moveR) camState.target.addScaledVector(right,  moveSpeed);
+
+  // Follow selected robot
+  if (followMode && robots[selectedRobotId] && robots[selectedRobotId].initialized) {
+    const r = robots[selectedRobotId];
+    camState.target.lerp(new THREE.Vector3(r.x, 0, r.z), 0.06);
+    camState.radius = Math.max(10, camState.radius * 0.98 + 12 * 0.02);
+  }
+
+  updateCamera();
+
+  // Simulation tick
+  if (running) {
+    accumulator3d += dt * simSpeed;
+    while (accumulator3d >= TICK_MS) {
+      accumulator3d -= TICK_MS;
+      tickSim();
+    }
+  }
+
+  // Update meshes
+  robots.forEach((robot, i) => {
+    if (!robot.initialized) return;
+    const mesh = robotMeshes[i];
+    if (!mesh) return;
+    // Smooth movement
+    mesh.position.x += (robot.x - mesh.position.x) * 0.12;
+    mesh.position.z += (robot.z - mesh.position.z) * 0.12;
+    const targetAngle = robot.angle;
+    let da = targetAngle - mesh.rotation.y;
+    while (da > Math.PI) da -= Math.PI*2;
+    while (da < -Math.PI) da += Math.PI*2;
+    mesh.rotation.y += da * 0.12;
+
+    // Wheel spin
+    const wheels = robotWheelMeshes[i];
+    if (wheels) {
+      const lSpeed = robot.leftRPM * 0.01;
+      const rSpeed = robot.rightRPM * 0.01;
+      wheels[0].rotation.x += lSpeed; wheels[2].rotation.x += lSpeed;
+      wheels[1].rotation.x += rSpeed; wheels[3].rotation.x += rSpeed;
+    }
+
+    // LiDAR lines (selected robot only)
+    const isSelected = i === selectedRobotId;
+    const showLidar = document.getElementById('tog-lidar')?.classList.contains('on') ?? true;
+    lidarLines[i].forEach((line, j) => {
+      if (isSelected && showLidar && robot.lidar.length) {
+        const ang = (j/36)*Math.PI*2 + robot.angle;
+        const dist = robot.lidar[j] * 8;
+        const ex = Math.sin(ang)*dist, ez = Math.cos(ang)*dist;
+        const pts = [
+          new THREE.Vector3(robot.x, 0.75, robot.z),
+          new THREE.Vector3(robot.x+ex, 0.75, robot.z+ez)
+        ];
+        line.geometry.setFromPoints(pts);
+        line.material.opacity = dist < 4 ? 0.6 : 0.2;
+        line.material.color.setHex(dist < 3 ? 0xff3355 : 0x00c8ff);
+        line.visible = true;
+      } else {
+        line.visible = false;
+      }
+    });
+
+    // Emissive pulse for working robots
+    const bodyMesh = robotBodyMeshes[i];
+    if (bodyMesh) {
+      const pulse = 0.1 + 0.08 * Math.sin(now*0.003 + i);
+      bodyMesh.material.emissiveIntensity = robot.state==='working' ? pulse*2 : pulse;
+    }
+  });
+
+  renderer.render(scene, camera);
+
+  // UI updates every frame
+  updateMonitorSidebar();
+  updateClock();
+  updateHdrStats();
+  updateTimerHUD();
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIMULATION LOGIC
+// ═══════════════════════════════════════════════════════════
+function stCoords3D(id) {
+  const s = STATIONS_DEF.find(s=>s.id===id);
+  return s ? {x:s.x, z:s.z} : {x:0,z:0};
+}
+
+function tickSim() {
+  robots.forEach(robot => {
+    robot.battery = Math.max(0, robot.battery - (robot.state==='charging'?-1.2:0.06));
+    robot.pitch = (Math.random()-0.5)*3;
+    robot.roll  = (Math.random()-0.5)*2;
+
+    if (!robot.initialized) {
+      const home = stCoords3D('HOME');
+      robot.x = home.x + (robot.id-2)*2;
+      robot.z = home.z + (robot.id-2)*1.5;
+      robot.tx = robot.x; robot.tz = robot.z;
+      robot.initialized = true;
+      if (!robot.isStandby) goNextDest(robot);
+      else { robot.state='idle'; robot.stateLabel='Standby'; }
+      return;
+    }
+
+    switch(robot.state) {
+      case 'idle':
+        if (robot.battery < 22) { goCharge(robot); break; }
+        if (!robot.isStandby) goNextDest(robot);
+        else { // standby takes over for low-battery robots
+          const needHelp = robots.find(r=>r.id!==robot.id && r.battery<20 && r.state!=='charging' && !r.isStandby);
+          if (needHelp) {
+            robot.line = needHelp.line;
+            robot.stateLabel = `ช่วย ${needHelp.name}`;
+            goNextDest(robot);
+          }
+        }
+        break;
+
+      case 'moving': {
+        const dx = robot.tx - robot.x, dz = robot.tz - robot.z;
+        const dist = Math.sqrt(dx*dx+dz*dz);
+        const spd = 0.4 + simSpeed*0.1;
+        if (dist < spd+0.1) {
+          robot.x = robot.tx; robot.z = robot.tz;
+          robot.speed = 0;
+          robot.leftWheel = 0; robot.rightWheel = 0;
+          robot.leftRPM = 0; robot.rightRPM = 0;
+          robot.state = 'arrived';
+          onArrived(robot);
+        } else {
+          robot.angle = -Math.atan2(dx, dz);
+          const turn = ((robot.angle - robot.angle + Math.PI*3) % (Math.PI*2)) - Math.PI;
+          robot.leftWheel  = Math.min(1, 0.8 + turn*0.3);
+          robot.rightWheel = Math.min(1, 0.8 - turn*0.3);
+          robot.leftRPM  = Math.round(robot.leftWheel  * 120);
+          robot.rightRPM = Math.round(robot.rightWheel * 120);
+          robot.speed = spd;
+          robot.x += (dx/dist)*spd;
+          robot.z += (dz/dist)*spd;
+        }
+        updateLidar(robot);
+        break;
+      }
+
+      case 'working':
+        robot.workTimer--;
+        robot.leftWheel=0; robot.rightWheel=0;
+        robot.leftRPM=0; robot.rightRPM=0;
+        robot.speed=0;
+        robot.bumper = Math.random()<0.05;
+        if (robot.workTimer<=0) finishWork(robot);
+        break;
+
+      case 'charging':
+        robot.leftWheel=0; robot.rightWheel=0;
+        robot.stateLabel=`ชาร์จ ${Math.round(robot.battery)}%`;
+        if (robot.battery>=95) {
+          robot.state='idle';
+          addLog(`${robot.name} ชาร์จเสร็จ ✓`, 'success', 'AMR');
+          goNextDest(robot);
+        }
+        break;
+
+      case 'arrived': break;
+    }
+  });
+
+  // Random production events
+  if (Math.random()<0.04) {
+    const sid = PROD_STATION_IDS[Math.floor(Math.random()*PROD_STATION_IDS.length)];
+    if (stationData[sid]) {
+      Math.random()<0.85 ? stationData[sid].pass++ : stationData[sid].fail++;
+    }
+  }
+}
+
+function goNextDest(robot) {
+  if (robot.battery<20) { goCharge(robot); return; }
+  // หยุดถ้าครบ 100 ชิ้นแล้ว
+  if (tasksDone >= 100) { robot.state='idle'; robot.stateLabel='งานครบ 100 ชิ้น'; return; }
+
+  // หาชิ้นถัดไปที่ยัง wait อยู่ — ไล่ตามลำดับ SN-0001, SN-0002...
+  const nextPiece = serialNumbers.find(s => s.status === 'wait');
+  if (!nextPiece) { robot.state='idle'; robot.stateLabel='รอชิ้นงาน'; return; }
+
+  const route = ROUTES[robot.line];
+  if (!route) return;
+  const idx = robot.routeIdx % route.length;
+  const destId = route[idx];
+  robot.routeIdx++;
+  moveTo(robot, destId);
+
+  if (idx===0) {
+    // เริ่ม timer ตอนชิ้นแรกเริ่มวิ่ง
+    if (!simStartTime) { simStartTime = Date.now(); addLog('เริ่มนับเวลา — ชิ้นงานแรกออกจาก HOME', 'info', 'SYS'); }
+    // จองชิ้นงานนี้ให้รถ
+    nextPiece.status = 'transit';
+    nextPiece.robotId = robot.id;
+    nextPiece.ts = new Date().toLocaleTimeString('th');
+    robot.cargo.push({sn: nextPiece.sn, dest: route[route.length-1]});
+    addLog(`${robot.name} รับ ${nextPiece.sn}`, 'info', 'AMR');
+  }
+}
+
+function genSNRuntime() {
+  return 'SN-R-' + Date.now().toString(36).slice(-4).toUpperCase();
+}
+
+function fmtTime(ms) {
+  const s = Math.floor(ms/1000);
+  const m = Math.floor(s/60);
+  const h = Math.floor(m/60);
+  return `${String(h).padStart(2,'0')}:${String(m%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+
+function updateSNRobot(sn, robotId) {
+  const found = serialNumbers.find(s=>s.sn===sn);
+  if (found) { found.robotId=robotId; found.status='transit'; }
+}
+
+function goCharge(robot) {
+  const charger = Math.random()<0.5?'CHG1':'CHG2';
+  moveTo(robot, charger);
+  robot.stateLabel=`มุ่งจุดชาร์จ`;
+  addLog(`${robot.name} แบตต่ำ (${robot.battery.toFixed(0)}%) → ชาร์จ`, 'warn', 'AMR');
+}
+
+function moveTo(robot, destId) {
+  const c = stCoords3D(destId);
+  robot.tx = c.x + (Math.random()-0.5)*1.5;
+  robot.tz = c.z + (Math.random()-0.5)*1.5;
+  robot.destId = destId;
+  const st = STATIONS_DEF.find(s=>s.id===destId);
+  robot.stateLabel = `→ ${st ? st.label.split('\n')[0] : destId}`;
+  robot.state = 'moving';
+}
+
+function onArrived(robot) {
+  const st = STATIONS_DEF.find(s=>s.id===robot.destId);
+  if (!st) { robot.state='idle'; return; }
+  if (st.type==='charger') { robot.state='charging'; return; }
+  if (st.type==='home')    { robot.state='idle'; robot.stateLabel='รอที่ Home'; return; }
+  robot.state='working';
+  robot.workTimer = 3 + Math.floor(Math.random()*5);
+  robot.stateLabel = `ทำงาน @ ${st.label.split('\n')[0]}`;
+  if (stationData[robot.destId]) stationData[robot.destId].processing++;
+  // อัปเดต status SN ที่อยู่บนรถ
+  robot.cargo.forEach(c => {
+    const piece = serialNumbers.find(s=>s.sn===c.sn);
+    if (piece) { piece.status='station'; piece.station=robot.destId; piece.ts=new Date().toLocaleTimeString('th'); }
+  });
+  addLog(`${robot.name} ถึง ${st.label.replace('\n',' ')}`, 'info', 'AMR');
+}
+
+function finishWork(robot) {
+  const sid = robot.destId;
+  if (stationData[sid]) {
+    stationData[sid].processing = Math.max(0, stationData[sid].processing-1);
+    const pass = Math.random() > (parseInt(document.getElementById('cfg-failrate')?.value||15)/100);
+    if (['A3','B3','C3','D3'].includes(sid)) {
+      if (pass) stationData[sid].pass++; else stationData[sid].fail++;
+    } else stationData[sid].pass++;
+  }
+  if (sid==='OUT') {
+    robot.cargo.forEach(c => {
+      const piece = serialNumbers.find(s=>s.sn===c.sn);
+      if (piece) {
+        const failed = piece.failComp && piece.failComp.length > 0;
+        piece.status = failed ? 'fail' : 'pass';
+        piece.station = sid;
+        piece.ts = new Date().toLocaleTimeString('th');
+        addLog(`${piece.sn} → ${failed?'FAIL ✗':'PASS ✓'}`, failed?'warn':'success', 'STA');
+      }
+    });
+    robot.tasksCompleted++;
+    tasksDone++;
+    robot.cargo = [];
+    addLog(`${robot.name} ส่งสำเร็จ ✓ (${tasksDone}/100)`, 'success', 'AMR');
+    // จบเมื่อครบ 100
+    if (tasksDone >= 100 && !simEndTime) {
+      simEndTime = Date.now();
+      const elapsed = fmtTime(simEndTime - simStartTime);
+      addLog(`✅ ครบ 100 ชิ้น! เวลารวม: ${elapsed}`, 'success', 'SYS');
+    }
+  } else {
+    // อัปเดต status เป็น transit ต่อไป
+    robot.cargo.forEach(c => {
+      const piece = serialNumbers.find(s=>s.sn===c.sn);
+      if (piece) { piece.status='transit'; piece.ts=new Date().toLocaleTimeString('th'); }
+    });
+  }
+  robot.state='idle';
+}
+
+function updateLidar(robot) {
+  robot.lidar = Array.from({length:36}, (_,i) => {
+    const ang = (i/36)*Math.PI*2;
+    let dist = 0.6 + Math.random()*0.35;
+    robots.forEach(other => {
+      if (other.id===robot.id) return;
+      const dx=other.x-robot.x, dz=other.z-robot.z;
+      const d=Math.sqrt(dx*dx+dz*dz);
+      const a=Math.atan2(dz,dx);
+      const diff=Math.abs(((a-ang+Math.PI*3)%(Math.PI*2))-Math.PI);
+      if (diff<0.25&&d<6) dist=Math.min(dist,d/8);
+    });
+    return dist;
+  });
+  robot.lidarDists = robot.lidar.map(v => (v*8).toFixed(2));
+}
+
+// ═══════════════════════════════════════════════════════════
+// UI UPDATES
+// ═══════════════════════════════════════════════════════════
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('th');
+}
+
+function updateTimerHUD() {
+  const lbl = document.getElementById('timer-label');
+  const disp = document.getElementById('timer-display');
+  const prog = document.getElementById('timer-progress');
+  const hud = document.getElementById('timer-hud');
+  if (!lbl||!disp||!prog) return;
+  prog.textContent = `${tasksDone}/100`;
+  if (!simStartTime) {
+    lbl.textContent = 'รอเริ่ม'; disp.textContent = '00:00:00';
+    if (hud) hud.style.borderColor = 'var(--border2)';
+    return;
+  }
+  const elapsed = (simEndTime || Date.now()) - simStartTime;
+  disp.textContent = fmtTime(elapsed);
+  if (simEndTime) {
+    lbl.textContent = '✅ เสร็จสิ้น';
+    if (hud) hud.style.borderColor = 'var(--accent2)';
+    disp.style.color = 'var(--accent2)';
+  } else {
+    lbl.textContent = '⏱ กำลังทำงาน';
+    if (hud) hud.style.borderColor = 'var(--accent)';
+    disp.style.color = 'var(--accent)';
+  }
+}
+
+function updateHdrStats() {
+  const active = robots.filter(r=>r.state!=='idle'&&r.state!=='charging').length;
+  const charging = robots.filter(r=>r.state==='charging').length;
+  document.getElementById('hdr-stats').textContent =
+    `รถทำงาน: ${active}/5  |  ชาร์จ: ${charging}  |  งานเสร็จ: ${tasksDone}`;
+}
+
+function updateMonitorSidebar() {
+  const fl = document.getElementById('fleet-list-monitor');
+  if (!fl) return;
+  // สร้าง HTML เพียงครั้งเดียว ไม่ re-render ทุก frame
+  if (!fl.dataset.built) {
+    fl.dataset.built = '1';
+    fl.innerHTML = robots.map((r,i) => `
+      <div class="robot-card" id="rcard-${i}" onclick="selectRobot(${i})">
+        <div class="rc-dot" style="background:${r.color}"></div>
+        <div class="rc-name" style="color:${r.color}">${r.name}</div>
+        <div class="rc-state" id="rstate-${i}">—</div>
+        <div class="rc-bat-wrap">
+          <div class="rc-bat-bar"><div class="rc-bat-fill" id="rbat-${i}"></div></div>
+          <div class="rc-bat-val" id="rbatv-${i}">—</div>
+        </div>
+        <button class="follow-btn" id="rfol-${i}" onclick="event.stopPropagation();selectRobot(${i});toggleFollow()">○</button>
+      </div>`).join('');
+  }
+  // อัปเดตเฉพาะค่าที่เปลี่ยน ไม่สร้าง DOM ใหม่
+  robots.forEach((r,i) => {
+    const bc = r.battery>50?'#00ff88':r.battery>25?'#ffaa00':'#ff3355';
+    const card = document.getElementById(`rcard-${i}`);
+    const st   = document.getElementById(`rstate-${i}`);
+    const bat  = document.getElementById(`rbat-${i}`);
+    const batv = document.getElementById(`rbatv-${i}`);
+    const fol  = document.getElementById(`rfol-${i}`);
+    if (card) card.classList.toggle('sel', i===selectedRobotId);
+    if (st)   st.textContent = r.stateLabel;
+    if (bat)  { bat.style.width=r.battery.toFixed(0)+'%'; bat.style.background=bc; }
+    if (batv) batv.textContent = r.battery.toFixed(0)+'%';
+    if (fol)  { const on=followMode&&selectedRobotId===i; fol.textContent=on?'◎':'○'; fol.classList.toggle('on',on); }
+  });
+
+  // Station mini
+  const sm = document.getElementById('station-mini');
+  if (!sm) return;
+  sm.innerHTML = PROD_STATION_IDS.map(id => {
+    const d = stationData[id]||{pass:0,fail:0};
+    const st = STATIONS_DEF.find(s=>s.id===id);
+    return `<div class="st-mini">
+      <div class="st-mini-name">${st?st.label.split('\n')[0]:id}</div>
+      <div class="st-mini-vals"><span class="pv">${d.pass}</span><span class="fv">/${d.fail}</span></div>
+    </div>`;
+  }).join('');
+
+  // 100 pieces grid
+  const pg = document.getElementById('pieces-100');
+  if (!pg) return;
+  pg.innerHTML = serialNumbers.map((s,i) => {
+    const cls = {transit:'pc-transit',station:'pc-work',pass:'pc-pass',fail:'pc-fail'}[s.status]||'pc-wait';
+    const robot = s.robotId!==null ? robots[s.robotId]?.name||'' : '';
+    const tip = `${s.sn}\n${s.status.toUpperCase()}\nสถานี: ${s.station||'—'}\n${robot}`;
+    return `<div class="pc-cell ${cls}" title="${tip}" onclick="showSNDetail('${s.sn}');switchTab('tracking')">${i+1}</div>`;
+  }).join('');
+}
+
+// Fleet Tab
+function updateFleetTab() {
+  const grid = document.getElementById('fleet-grid');
+  if (!grid || !document.getElementById('tab-fleet').classList.contains('active')) return;
+  grid.innerHTML = robots.map((r,i) => {
+    const batCol = r.battery>50?'#00ff88':r.battery>25?'#ffaa00':'#ff3355';
+    const stateCol = r.state==='working'?'var(--accent)':r.state==='charging'?'var(--warn)':r.state==='moving'?'var(--accent2)':'var(--text2)';
+    const lRel = Math.abs(r.leftWheel)*100, rRel = Math.abs(r.rightWheel)*100;
+    const lCol = r.leftWheel>=0?'var(--accent)':'var(--danger)';
+    const rCol = r.rightWheel>=0?'var(--accent)':'var(--danger)';
+    const cargoHtml = r.cargo.length ?
+      r.cargo.map(c=>`<div class="cargo-item"><span class="ci-sn">${c.sn}</span><span class="ci-dest">→ ${c.dest}</span><span class="ci-status sb-transit">IN TRANSIT</span></div>`).join('')
+      : `<div style="font-size:10px;color:var(--text2);padding:4px 0;">ไม่มีสินค้า</div>`;
+
+    // Average LiDAR dist
+    const avgDist = r.lidarDists.length ? (r.lidarDists.reduce((a,b)=>a+parseFloat(b),0)/r.lidarDists.length).toFixed(2) : '—';
+    const minDist = r.lidarDists.length ? Math.min(...r.lidarDists.map(Number)).toFixed(2) : '—';
+
+    return `<div class="fleet-card${i===selectedRobotId?' active-sel':''}">
+      <div class="fc-header">
+        <div class="fc-dot" style="background:${r.color}"></div>
+        <div class="fc-name" style="color:${r.color}">${r.name}</div>
+        <span style="font-size:10px;color:var(--text2);">${r.role}</span>
+        <span class="fc-state-badge" style="color:${stateCol};border-color:${stateCol};background:${stateCol}15;">${r.stateLabel}</span>
+      </div>
+
+      <div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text2);margin-bottom:5px;letter-spacing:1px;">BATTERY</div>
+        <div class="fc-bat-row">
+          <span class="fc-bat-label">BAT</span>
+          <div class="fc-bat-track"><div class="fc-bat-fill" style="width:${r.battery.toFixed(0)}%;background:${batCol}"></div></div>
+          <span class="fc-bat-pct" style="color:${batCol}">${r.battery.toFixed(1)}%</span>
+        </div>
+        <div class="fc-bat-info" style="margin-top:5px;">
+          <span>Voltage: <span style="color:var(--text)">${r.voltage}V</span></span>
+          <span>ETA Full: <span style="color:var(--text)">${r.state==='charging'?Math.round((100-r.battery)/1.2)+' tick':'—'}</span></span>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text2);margin-bottom:5px;letter-spacing:1px;">WHEEL CONTROL</div>
+        <div class="wheels-row">
+          <div class="wheel-panel">
+            <div class="wh-title">LEFT WHEEL</div>
+            <div class="wh-gauge">
+              <div class="wh-center"></div>
+              <div class="wh-fill" style="height:${lRel}%;bottom:${r.leftWheel>=0?'50%':'auto'};top:${r.leftWheel<0?'50%':'auto'};background:${lCol}"></div>
+            </div>
+            <div class="wh-val" style="color:${lCol}">${r.leftWheel.toFixed(2)}</div>
+            <div class="wh-rpm">${r.leftRPM} RPM</div>
+          </div>
+          <div class="wheel-panel">
+            <div class="wh-title">RIGHT WHEEL</div>
+            <div class="wh-gauge">
+              <div class="wh-center"></div>
+              <div class="wh-fill" style="height:${rRel}%;bottom:${r.rightWheel>=0?'50%':'auto'};top:${r.rightWheel<0?'50%':'auto'};background:${rCol}"></div>
+            </div>
+            <div class="wh-val" style="color:${rCol}">${r.rightWheel.toFixed(2)}</div>
+            <div class="wh-rpm">${r.rightRPM} RPM</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text2);margin-bottom:5px;letter-spacing:1px;">LIDAR SENSOR</div>
+        <div class="lidar-wrap">
+          <canvas class="lidar-canvas" id="lc-${i}" width="120" height="120"></canvas>
+        </div>
+        <div class="info-row" style="margin-top:4px;"><span class="ik">ระยะเฉลี่ย</span><span class="iv">${avgDist} m</span></div>
+        <div class="info-row"><span class="ik">ระยะใกล้สุด</span><span class="iv" style="color:${parseFloat(minDist)<2?'var(--danger)':'var(--accent)'}"> ${minDist} m</span></div>
+      </div>
+
+      <div class="sensors-grid">
+        <div class="sensor-box">
+          <div class="sb-label">SPEED</div>
+          <div class="sb-val" style="color:var(--accent)">${r.speed.toFixed(2)} m/s</div>
+          <div class="sb-bar"><div class="sb-bar-fill" style="width:${r.speed*50}%;background:var(--accent)"></div></div>
+        </div>
+        <div class="sensor-box">
+          <div class="sb-label">PITCH / ROLL</div>
+          <div class="sb-val" style="color:var(--purple);font-size:10px;">${r.pitch.toFixed(1)}° / ${r.roll.toFixed(1)}°</div>
+        </div>
+        <div class="sensor-box">
+          <div class="sb-label">BUMPER</div>
+          <div class="sb-val" style="color:${r.bumper?'var(--danger)':'var(--accent2)'}">${r.bumper?'TRIGGERED':'CLEAR'}</div>
+        </div>
+        <div class="sensor-box">
+          <div class="sb-label">TASKS DONE</div>
+          <div class="sb-val" style="color:var(--accent2)">${r.tasksCompleted}</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text2);margin-bottom:5px;letter-spacing:1px;">CARGO</div>
+        <div class="cargo-list">${cargoHtml}</div>
+      </div>
+
+      <div>
+        <div class="info-row"><span class="ik">ตำแหน่ง</span><span class="iv">X:${r.x.toFixed(1)} Z:${r.z.toFixed(1)}</span></div>
+        <div class="info-row"><span class="ik">ปลายทาง</span><span class="iv">${r.destId}</span></div>
+        <div class="info-row"><span class="ik">Line</span><span class="iv" style="color:${r.color}">Line-${r.line}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Draw LiDAR on each card
+  robots.forEach((r,i) => {
+    const lc = document.getElementById(`lc-${i}`);
+    if (lc) drawLidarCanvas(lc, r);
+  });
+}
+
+function drawLidarCanvas(canvas, robot) {
+  const size = canvas.width;
+  const ctx = canvas.getContext('2d');
+  const cx=size/2, cy=size/2, maxR=size/2-4;
+  ctx.clearRect(0,0,size,size);
+  ctx.fillStyle='#08090d';
+  ctx.beginPath(); ctx.arc(cx,cy,maxR,0,Math.PI*2); ctx.fill();
+  [0.33,0.66,1].forEach(f => {
+    ctx.beginPath(); ctx.arc(cx,cy,maxR*f,0,Math.PI*2);
+    ctx.strokeStyle='rgba(26,37,53,0.9)'; ctx.lineWidth=0.5; ctx.stroke();
+  });
+  if (robot.lidar.length) {
+    ctx.beginPath();
+    robot.lidar.forEach((d,i) => {
+      const ang=(i/robot.lidar.length)*Math.PI*2-Math.PI/2;
+      const r2=d*maxR;
+      i===0?ctx.moveTo(cx+Math.cos(ang)*r2,cy+Math.sin(ang)*r2):ctx.lineTo(cx+Math.cos(ang)*r2,cy+Math.sin(ang)*r2);
+    });
+    ctx.closePath();
+    ctx.fillStyle='rgba(0,200,255,0.1)'; ctx.fill();
+    ctx.strokeStyle='rgba(0,200,255,0.7)'; ctx.lineWidth=1; ctx.stroke();
+    robot.lidar.forEach((d,i) => {
+      if (d<0.7) {
+        const ang=(i/robot.lidar.length)*Math.PI*2-Math.PI/2;
+        ctx.beginPath(); ctx.arc(cx+Math.cos(ang)*d*maxR,cy+Math.sin(ang)*d*maxR,2,0,Math.PI*2);
+        ctx.fillStyle=d<0.4?'#ff3355':'#00c8ff'; ctx.fill();
+      }
+    });
+  }
+  ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2);
+  ctx.fillStyle=robot.color; ctx.fill();
+  ctx.strokeStyle='rgba(0,200,255,0.2)'; ctx.lineWidth=0.5;
+  ctx.beginPath(); ctx.moveTo(cx,cy-maxR); ctx.lineTo(cx,cy+maxR); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx-maxR,cy); ctx.lineTo(cx+maxR,cy); ctx.stroke();
+}
+
+// Tracking Tab
+function updateTrackingTab() {
+  if (!document.getElementById('tab-tracking').classList.contains('active')) return;
+  let data = serialNumbers;
+  if (snFilter !== 'all') data = data.filter(s=>s.status===snFilter);
+  if (snSearch) data = data.filter(s=>s.sn.toLowerCase().includes(snSearch.toLowerCase()));
+
+  const pass = serialNumbers.filter(s=>s.status==='pass').length;
+  const fail = serialNumbers.filter(s=>s.status==='fail').length;
+  const transit = serialNumbers.filter(s=>s.status==='transit').length;
+  document.getElementById('tk-total').textContent   = serialNumbers.length;
+  document.getElementById('tk-pass').textContent    = pass;
+  document.getElementById('tk-fail').textContent    = fail;
+  document.getElementById('tk-transit').textContent = transit;
+
+  const tbody = document.getElementById('sn-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = data.map(s => {
+    const robotName = s.robotId!==null ? robots[s.robotId]?.name||'—' : '—';
+    const robotColor = s.robotId!==null ? robots[s.robotId]?.color||'var(--text2)' : 'var(--text2)';
+    const sbClass = {transit:'sb-transit',station:'sb-station',pass:'sb-pass',fail:'sb-fail',queue:'sb-queue'}[s.status]||'sb-queue';
+    const ictColor = s.ict==='PASS'?'var(--accent2)':'var(--danger)';
+    const fctColor = s.fct==='PASS'?'var(--accent2)':'var(--danger)';
+    const compColor = s.component==='—'?'var(--text2)':'var(--danger)';
+    const isSelected = s.sn === selectedSN;
+    return `<tr data-sn="${s.sn}" onclick="showSNDetail('${s.sn}')" style="cursor:pointer;${isSelected?'background:rgba(0,200,255,0.08);':''}">
+      <td class="sn-code">${s.sn}</td>
+      <td><span class="status-badge ${sbClass}">${s.status.toUpperCase()}</span></td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--text2)">${s.station}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:${robotColor}">${robotName}</td>
+      <td style="font-family:var(--mono);font-size:10px;">${s.station}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:${ictColor}">${s.ict}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:${fctColor}">${s.fct}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:${compColor}">${s.component}</td>
+      <td style="font-size:10px;color:var(--text2)">${s.ts}</td>
+    </tr>`;
+  }).join('');
+  // refresh detail panel ถ้ามี SN ที่เลือกอยู่
+  if (selectedSN) showSNDetail(selectedSN);
+}
+
+// Analytics Tab
+function updateAnalyticsTab() {
+  if (!document.getElementById('tab-analytics').classList.contains('active')) return;
+  // Station bars
+  const sb = document.getElementById('station-bars');
+  if (sb) {
+    sb.innerHTML = PROD_STATION_IDS.map(id => {
+      const d = stationData[id]||{pass:0,fail:0};
+      const total = d.pass+d.fail||1;
+      const pPct = Math.round(d.pass/total*100);
+      const fPct = 100-pPct;
+      const st = STATIONS_DEF.find(s=>s.id===id);
+      return `<div class="station-row">
+        <span class="sr-name">${st?st.label.split('\n')[0]:id}</span>
+        <div class="sr-bar-wrap">
+          <div class="sr-bar-pass" style="width:${pPct}%"></div>
+          <div class="sr-bar-fail" style="width:${fPct}%"></div>
+        </div>
+        <span class="sr-pct">${pPct}%</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--accent2);width:30px;">✓${d.pass}</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--danger);width:30px;">✗${d.fail}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Test types
+  const ttg = document.getElementById('test-type-grid');
+  if (ttg) {
+    const ictPass = serialNumbers.filter(s=>s.ict==='PASS').length;
+    const ictFail = serialNumbers.filter(s=>s.ict==='FAIL').length;
+    const fctPass = serialNumbers.filter(s=>s.fct==='PASS').length;
+    const fctFail = serialNumbers.filter(s=>s.fct==='FAIL').length;
+    const compFail = serialNumbers.filter(s=>s.component!=='—').length;
+    const types = [
+      {name:'ICT', pass:ictPass, fail:ictFail, color:'var(--accent)'},
+      {name:'FCT', pass:fctPass, fail:fctFail, color:'var(--purple)'},
+      {name:'COMPONENT', pass:serialNumbers.length-compFail, fail:compFail, color:'var(--warn)'},
+    ];
+    ttg.innerHTML = types.map(t => {
+      const rate = Math.round(t.pass/(t.pass+t.fail||1)*100);
+      return `<div class="tt-card">
+        <div class="tt-name" style="color:${t.color}">${t.name}</div>
+        <div class="tt-big" style="color:${t.color}">${rate}%</div>
+        <div class="tt-sub">Pass rate</div>
+        <div class="tt-rate" style="color:var(--accent2)">✓ ${t.pass} &nbsp; <span style="color:var(--danger)">✗ ${t.fail}</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  // Component failures
+  const cfl = document.getElementById('comp-fail-list');
+  if (cfl) {
+    const compCounts = {};
+    serialNumbers.forEach(s => { if(s.component!=='—') { compCounts[s.component]=(compCounts[s.component]||0)+1; } });
+    const sorted = Object.entries(compCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const maxCount = sorted[0]?.[1]||1;
+    cfl.innerHTML = sorted.map(([comp,cnt]) =>
+      `<div class="comp-row">
+        <span class="comp-id">${comp}</span>
+        <div class="comp-bar-wrap"><div class="comp-bar" style="width:${Math.round(cnt/maxCount*100)}%"></div></div>
+        <span class="comp-cnt">${cnt}</span>
+      </div>`
+    ).join('');
+  }
+}
+
+function drawPCB(canvasId, piece) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // PCB background
+  ctx.fillStyle = '#050e08';
+  ctx.fillRect(0,0,W,H);
+
+  // PCB border
+  ctx.strokeStyle = '#1a4020';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(3,3,W-6,H-6);
+
+  // Traces (simplified)
+  ctx.strokeStyle = 'rgba(0,160,60,.25)';
+  ctx.lineWidth = 1;
+  [[.1,.5,.9,.5],[.5,.1,.5,.9],[.2,.33,.8,.33],[.2,.67,.8,.67]].forEach(([x1,y1,x2,y2])=>{
+    ctx.beginPath(); ctx.moveTo(x1*W,y1*H); ctx.lineTo(x2*W,y2*H); ctx.stroke();
+  });
+
+  // Draw components
+  PCB_LAYOUT.forEach(c => {
+    const x=c.x*W, y=c.y*H, w=c.w*W, h=c.h*H;
+    const isFail = piece.failComp && piece.failComp.includes(c.id);
+    const fillColor = {
+      ic:  isFail?'rgba(200,30,50,.5)' :'rgba(0,120,60,.5)',
+      cap: isFail?'rgba(200,30,50,.5)' :'rgba(0,80,180,.5)',
+      res: isFail?'rgba(200,30,50,.45)':'rgba(180,100,0,.5)',
+      ind: isFail?'rgba(200,30,50,.5)' :'rgba(100,0,180,.5)',
+    }[c.type]||'rgba(60,60,60,.5)';
+    const strokeColor = isFail ? '#ff3355' : '#00ff88';
+
+    ctx.fillStyle = fillColor;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = isFail ? 2 : 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 2);
+    ctx.fill(); ctx.stroke();
+
+    // Label
+    ctx.fillStyle = isFail ? '#ff9999' : '#99ffcc';
+    ctx.font = `bold ${Math.max(7, Math.min(w*.45, 9))}px var(--mono, monospace)`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.id, x+w/2, y+h/2);
+
+    // Fail marker
+    if (isFail) {
+      ctx.fillStyle = '#ff3355';
+      ctx.font = `bold 10px sans-serif`;
+      ctx.fillText('✗', x+w-4, y+5);
+    }
+  });
+
+  // Legend
+  ctx.font = '8px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#00ff88'; ctx.fillText('■ PASS', 6, H-6);
+  ctx.fillStyle = '#ff3355'; ctx.fillText('■ FAIL', 52, H-6);
+  const failCount = piece.failComp ? piece.failComp.length : 0;
+  ctx.fillStyle = 'rgba(180,180,180,.6)';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${PCB_LAYOUT.length-failCount}✓  ${failCount}✗`, W-6, H-6);
+}
+
+function showSNDetail(sn) {
+  selectedSN = sn;
+  // highlight แถวที่เลือก
+  document.querySelectorAll('#sn-tbody tr').forEach(tr => {
+    tr.style.background = tr.dataset.sn === sn ? 'rgba(0,200,255,0.08)' : '';
+  });
+  const s = serialNumbers.find(x=>x.sn===sn);
+  const panel = document.getElementById('sn-detail-content');
+  if (!panel) return;
+  if (!s) { panel.innerHTML='<div style="color:var(--text2);font-size:11px;">ไม่พบ SN</div>'; return; }
+  const robotName = s.robotId!==null ? robots[s.robotId]?.name||'—' : '—';
+  const robotColor = s.robotId!==null ? robots[s.robotId]?.color||'var(--text2)' : 'var(--text2)';
+  const sbClass = {transit:'sb-transit',station:'sb-station',pass:'sb-pass',fail:'sb-fail'}[s.status]||'sb-queue';
+  const ictCol = s.ict==='PASS'?'var(--accent2)':'var(--danger)';
+  const fctCol = s.fct==='PASS'?'var(--accent2)':'var(--danger)';
+  const compCol = s.component==='—'?'var(--text2)':'var(--danger)';
+  const stepsHtml = s.testSteps.map(step=>`
+    <div class="test-step">
+      <div class="ts-icon ${step.result==='pass'?'ts-pass-icon':'ts-fail-icon'}">${step.result==='pass'?'✓':'✗'}</div>
+      <div class="ts-name">${step.name}</div>
+      <div class="ts-detail">${step.detail}</div>
+    </div>`).join('');
+  panel.innerHTML = `
+    <div class="sn-detail-card">
+      <div class="sdc-title">◈ ${s.sn}</div>
+      <div class="sdc-row"><span class="sdc-k">สถานะ</span><span class="sdc-v"><span class="status-badge ${sbClass}">${s.status.toUpperCase()}</span></span></div>
+      <div class="sdc-row"><span class="sdc-k">สถานี</span><span class="sdc-v">${s.station||'—'}</span></div>
+      <div class="sdc-row"><span class="sdc-k">รถ AMR</span><span class="sdc-v" style="color:${robotColor}">${robotName}</span></div>
+      <div class="sdc-row"><span class="sdc-k">อัพเดท</span><span class="sdc-v">${s.ts}</span></div>
+    </div>
+    <div class="sn-detail-card" style="margin-top:8px;">
+      <div class="sdc-title">◈ PCB BOARD</div>
+      <canvas id="pcb-detail" width="260" height="180" style="width:100%;border-radius:4px;display:block;"></canvas>
+      <div style="display:flex;gap:10px;margin-top:6px;font-family:var(--mono);font-size:9px;">
+        <span style="color:${ictCol}">ICT: ${s.ict}${s.ictDetail?' — '+s.ictDetail:''}</span>
+        <span style="color:${fctCol}">FCT: ${s.fct}${s.fctDetail?' — '+s.fctDetail:''}</span>
+      </div>
+      ${s.component!=='—'?`<div style="font-family:var(--mono);font-size:9px;color:var(--danger);margin-top:3px;">⚠ Component fail: ${s.component}</div>`:''}
+    </div>
+    <div class="sn-detail-card" style="margin-top:8px;">
+      <div class="sdc-title">◈ TEST STEPS</div>
+      ${stepsHtml}
+    </div>`;
+  // วาด PCB หลัง DOM render
+  setTimeout(() => drawPCB('pcb-detail', s), 30);
+}
+
+function lookupSN(sn) {
+  if (!sn) { document.getElementById('sn-detail-view').innerHTML=''; return; }
+  const s = serialNumbers.find(x=>x.sn.toLowerCase().includes(sn.toLowerCase()));
+  const view = document.getElementById('sn-detail-view');
+  if (!view) return;
+  if (!s) { view.innerHTML=`<div style="color:var(--text2);font-size:11px;padding:10px 0;">ไม่พบ Serial Number</div>`; return; }
+  if (document.getElementById('an-sn-input')) document.getElementById('an-sn-input').value = s.sn;
+  const robotName = s.robotId!==null ? robots[s.robotId]?.name||'—' : '—';
+  const sbClass = {transit:'sb-transit',station:'sb-station',pass:'sb-pass',fail:'sb-fail'}[s.status]||'sb-queue';
+  const stepsHtml = s.testSteps.map(step =>
+    `<div class="test-step">
+      <div class="ts-icon ${step.result==='pass'?'ts-pass-icon':'ts-fail-icon'}">${step.result==='pass'?'✓':'✗'}</div>
+      <div class="ts-name">${step.name}</div>
+      <div class="ts-detail">${step.detail}</div>
+    </div>`
+  ).join('');
+  view.innerHTML = `
+    <div class="sn-detail-card">
+      <div class="sdc-title">◈ ${s.sn}</div>
+      <div class="sdc-row"><span class="sdc-k">สถานะ</span><span class="sdc-v"><span class="status-badge ${sbClass}">${s.status.toUpperCase()}</span></span></div>
+      <div class="sdc-row"><span class="sdc-k">สถานี</span><span class="sdc-v">${s.station}</span></div>
+      <div class="sdc-row"><span class="sdc-k">รถ AMR</span><span class="sdc-v">${robotName}</span></div>
+      <div class="sdc-row"><span class="sdc-k">ICT</span><span class="sdc-v" style="color:${s.ict==='PASS'?'var(--accent2)':'var(--danger)'}">${s.ict}</span></div>
+      <div class="sdc-row"><span class="sdc-k">FCT</span><span class="sdc-v" style="color:${s.fct==='PASS'?'var(--accent2)':'var(--danger)'}">${s.fct}</span></div>
+      <div class="sdc-row"><span class="sdc-k">Component</span><span class="sdc-v" style="color:${s.component==='—'?'var(--text)':'var(--danger)'}">${s.component}</span></div>
+      <div class="sdc-row"><span class="sdc-k">อัพเดท</span><span class="sdc-v">${s.ts}</span></div>
+    </div>
+    <div class="sn-detail-card">
+      <div class="sdc-title">◈ TEST STEPS</div>
+      ${stepsHtml}
+    </div>`;
+}
+
+// Log Tab
+function updateLogTab() {
+  if (!document.getElementById('tab-log').classList.contains('active')) return;
+  let filtered = logs;
+  if (logFilter!=='all') filtered = filtered.filter(l=>l.tag===logFilter);
+  if (logSearch) filtered = filtered.filter(l=>l.msg.toLowerCase().includes(logSearch));
+  document.getElementById('log-list').innerHTML = filtered.slice(0,80).map(l =>
+    `<div class="log-entry ${l.level}">
+      <span class="le-time">${l.time}</span>
+      <span class="le-tag tag-${l.tag.toLowerCase()}">${l.tag}</span>
+      <span class="le-msg">${l.msg}</span>
+    </div>`
+  ).join('');
+
+  // Sys info
+  const si = document.getElementById('sys-info');
+  if (si) si.innerHTML = [
+    ['Log entries', logs.length],
+    ['Sim ticks', Math.floor(performance.now()/TICK_MS)],
+    ['SN tracked', serialNumbers.length],
+    ['Tasks done', tasksDone],
+    ['Uptime', Math.floor(performance.now()/1000)+'s'],
+  ].map(([k,v])=>`<div class="info-row"><span class="ik">${k}</span><span class="iv">${v}</span></div>`).join('');
+}
+
+let logTick = 0;
+function addLog(msg, level='info', tag='SYS') {
+  const time = new Date().toLocaleTimeString('th');
+  logs.unshift({msg, level, tag, time});
+  if (logs.length>200) logs.pop();
+  logTick++;
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB SWITCHING & CONTROLS
+// ═══════════════════════════════════════════════════════════
+let currentTab = 'monitor';
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach((el,i) => {
+    const names = ['monitor','fleet','tracking','analytics','log'];
+    el.classList.toggle('active', names[i]===name);
+  });
+  document.getElementById('tab-'+name).classList.add('active');
+  if (name==='monitor') resizeThree();
+  if (name==='fleet') updateFleetTab();
+  if (name==='tracking') updateTrackingTab();
+  if (name==='analytics') updateAnalyticsTab();
+  if (name==='log') updateLogTab();
+}
+
+function selectRobot(i) {
+  selectedRobotId = i;
+  // อัปเดต highlight ใน Monitor sidebar ทันที ไม่รอ render loop
+  document.querySelectorAll('.robot-card').forEach((el, j) => {
+    el.classList.toggle('sel', j === i);
+  });
+  // อัปเดต Fleet tab ถ้าเปิดอยู่
+  if (currentTab === 'fleet') updateFleetTab();
+}
+
+function toggleRun() {
+  running = !running;
+  const btn = document.getElementById('btn-run');
+  btn.textContent = running ? '▶ RUN' : '⏸ PAUSE';
+  btn.classList.toggle('active', running);
+  addLog(running?'Simulation เริ่มทำงาน':'Simulation หยุดชั่วคราว', 'warn', 'SYS');
+}
+
+function setSpeed(v) {
+  simSpeed = parseFloat(v);
+  document.getElementById('spd-val').textContent = v+'x';
+}
+
+function addTask() {
+  const lines = ['A','B','C','D'];
+  const line = lines[Math.floor(Math.random()*4)];
+  const idle = robots.find(r=>!r.isStandby&&r.state==='idle'&&r.battery>30&&r.line===line)
+            || robots.find(r=>r.state==='idle'&&r.battery>30);
+  if (idle) {
+    idle.line = line;
+    idle.routeIdx = 0;
+    goNextDest(idle);
+    addLog(`มอบหมายงาน Line-${line} ให้ ${idle.name}`, 'info', 'SYS');
+  }
+}
+
+function resetSim() {
+  tasksDone=0; logs=[];
+  simStartTime=null; simEndTime=null;
+  // reset fleet list DOM เพื่อให้สร้างใหม่
+  const fl = document.getElementById('fleet-list-monitor');
+  if (fl) fl.dataset.built = '';
+  initStations(); initRobots(); initSerialNumbers();
+  addLog('ระบบรีเซ็ตทั้งหมด — เริ่มรอบใหม่', 'warn', 'SYS');
+}
+
+function filterSN(v) { snSearch=v; updateTrackingTab(); }
+function setFilter(f, btn) {
+  snFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  updateTrackingTab();
+}
+function filterLog(v) { logSearch=v.toLowerCase(); updateLogTab(); }
+function setLogFilter(f, btn) {
+  logFilter=f==='all'?'all':f;
+  document.querySelectorAll('#log-toolbar .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  updateLogTab();
+}
+function clearLog() { logs=[]; updateLogTab(); }
+function toggleSetting(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('on');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PERIODIC UI REFRESH FOR NON-3D TABS
+// ═══════════════════════════════════════════════════════════
+setInterval(() => {
+  if (currentTab==='fleet')     updateFleetTab();
+  if (currentTab==='tracking')  updateTrackingTab();
+  if (currentTab==='analytics') updateAnalyticsTab();
+  if (currentTab==='log')       updateLogTab();
+}, 500);
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+initStations();
+initRobots();
+initSerialNumbers();
+addLog('AMR Factory 3D Control System เริ่มทำงาน', 'success', 'SYS');
+addLog('โหลด Three.js renderer สำเร็จ', 'info', 'SYS');
+addLog('เริ่ม simulation — รถ 5 คัน, 4 Production Lines', 'info', 'SYS');
+ROBOT_NAMES.forEach((n,i) => addLog(`${n} (${ROBOT_ROLES[i]}) พร้อมทำงาน`, 'info', 'AMR'));
+initThree();
+</script>
+</body>
+</html>
