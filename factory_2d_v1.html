@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AMR Fleet Management System - Phase 1</title>
+<style>
+    body { font-family: 'Tahoma', sans-serif; background: #222; color: #fff; margin: 0; overflow: hidden; }
+    
+    /* ส่วนของเมนูควบคุม */
+    #dashboard { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 15px; border: 1px solid #555; z-index: 100; width: 250px; }
+    .btn { background: #444; color: white; border: 1px solid #777; padding: 5px 10px; cursor: pointer; margin: 2px; }
+    .btn:hover { background: #666; }
+    .active-btn { background: #007bff !important; }
+
+    /* พื้นที่โรงงาน */
+    #factory-viewport { width: 100vw; height: 100vh; position: relative; overflow: hidden; cursor: grab; }
+    #factory-floor { 
+        width: 2000px; height: 1500px; 
+        background: #333; 
+        background-image: linear-gradient(#444 1px, transparent 1px), linear-gradient(90px, #444 1px, transparent 1px);
+        background-size: 50px 50px;
+        position: absolute; transform-origin: 0 0;
+    }
+
+    /* สถานีและไลน์ */
+    .station { position: absolute; border: 3px solid #777; background: #555; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; text-align: center; }
+    .line-label { position: absolute; font-weight: bold; color: #aaa; text-transform: uppercase; letter-spacing: 2px; }
+    
+    /* Tower Lamp */
+    .tower-lamp { position: absolute; top: -30px; right: 5px; width: 15px; height: 40px; background: #111; border: 1px solid #000; display: flex; flex-direction: column; }
+    .lamp { flex: 1; margin: 1px; opacity: 0.2; }
+    .lamp.red { background: red; } .lamp.yellow { background: yellow; } .lamp.green { background: #0f0; }
+    .active { opacity: 1; box-shadow: 0 0 10px currentColor; }
+
+    /* รถ AMR */
+    .amr { 
+        position: absolute; width: 40px; height: 30px; 
+        background: #f1c40f; color: #000; border-radius: 4px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: bold; transition: transform 0.1s linear;
+    }
+    .wheel { position: absolute; width: 12px; height: 6px; background: #111; border: 1px solid #555; }
+    .wheel.left { top: -4px; left: 8px; }
+    .wheel.right { bottom: -4px; left: 8px; }
+    .wheel.spinning { background: #00ff00; }
+    .direction-arrow { position: absolute; right: -15px; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 10px solid #f1c40f; }
+
+</style>
+</head>
+<body>
+
+<div id="dashboard">
+    <h3 style="margin-top:0">AMR Fleet Control</h3>
+    <div id="time-display">Time: 00:00:00</div>
+    <hr>
+    <div>Follow AMR:</div>
+    <button class="btn active-btn" onclick="followVehicle(-1)">Free View</button><br>
+    <button class="btn" onclick="followVehicle(0)">AMR-01 (Line 1)</button>
+    <button class="btn" onclick="followVehicle(1)">AMR-02 (Line 2)</button>
+    <button class="btn" onclick="followVehicle(2)">AMR-03 (Line 3)</button>
+    <button class="btn" onclick="followVehicle(3)">AMR-04 (Line 4)</button>
+    <button class="btn" onclick="followVehicle(4)">AMR-05 (Standby)</button>
+    <hr>
+    <div id="vehicle-stat">Status: Ready</div>
+</div>
+
+<div id="factory-viewport">
+    <div id="factory-floor">
+        </div>
+</div>
+
+<script>
+    const floor = document.getElementById('factory-floor');
+    const statusText = document.getElementById('vehicle-stat');
+    let scale = 1.0;
+    let followIndex = -1;
+
+    // ข้อมูลสถานี (5 Stations)
+    const stations = [
+        { id: 'Home Base', x: 50, y: 650, w: 120, h: 200, color: '#34495e' },
+        { id: 'Station 1', x: 400, y: 100, w: 150, h: 100, color: '#27ae60' },
+        { id: 'Station 2', x: 800, y: 100, w: 150, h: 100, color: '#2980b9' },
+        { id: 'Station 3', x: 400, y: 400, w: 150, h: 100, color: '#8e44ad' },
+        { id: 'Station 4', x: 800, y: 400, w: 150, h: 100, color: '#d35400' }
+    ];
+
+    // ข้อมูลรถ AMR (5 คัน)
+    let amrs = [
+        { id: 'AMR-01', x: 100, y: 100, targetX: 100, targetY: 100, speed: 0, angle: 0, battery: 100, status: 'Idle' },
+        { id: 'AMR-02', x: 100, y: 200, targetX: 100, targetY: 200, speed: 0, angle: 0, battery: 100, status: 'Idle' },
+        { id: 'AMR-03', x: 100, y: 300, targetX: 100, targetY: 300, speed: 0, angle: 0, battery: 100, status: 'Idle' },
+        { id: 'AMR-04', x: 100, y: 400, targetX: 100, targetY: 400, speed: 0, angle: 0, battery: 100, status: 'Idle' },
+        { id: 'AMR-05', x: 50, y: 700, targetX: 50, targetY: 700, speed: 0, angle: 0, battery: 100, status: 'Standby' }
+    ];
+
+    // สร้างกราฟิกโรงงาน
+    function initFactory() {
+        stations.forEach(s => {
+            const el = document.createElement('div');
+            el.className = 'station';
+            el.style.left = s.x + 'px'; el.style.top = s.y + 'px';
+            el.style.width = s.w + 'px'; el.style.height = s.h + 'px';
+            el.style.borderColor = s.color;
+            el.innerHTML = s.id + `<div class="tower-lamp"><div class="lamp red"></div><div class="lamp yellow"></div><div class="lamp green active"></div></div>`;
+            floor.appendChild(el);
+        });
+
+        amrs.forEach((a, i) => {
+            const el = document.createElement('div');
+            el.id = 'amr-' + i;
+            el.className = 'amr';
+            el.innerHTML = `<div class="wheel left" id="wl-${i}"></div><div class="amr-label">${a.id}</div><div class="wheel right" id="wr-${i}"></div><div class="direction-arrow"></div>`;
+            floor.appendChild(el);
+        });
+    }
+
+    // ระบบขับเคลื่อน (Physics & Accel)
+    function updatePhysics() {
+        const accel = 0.2; // อัตราเร่ง
+        const maxSpeed = 4;
+
+        amrs.forEach((a, i) => {
+            let dx = a.targetX - a.x;
+            let dy = a.targetY - a.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist > 5) {
+                // เร่งความเร็ว (S-Curve จำลอง)
+                if (a.speed < maxSpeed) a.speed += accel;
+                
+                // ค่อยๆ หันหัวรถ
+                let targetAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                a.angle = targetAngle;
+
+                a.x += (dx / dist) * a.speed;
+                a.y += (dy / dist) * a.speed;
+
+                document.getElementById(`wl-${i}`).classList.add('spinning');
+                document.getElementById(`wr-${i}`).classList.add('spinning');
+            } else {
+                // เบรก
+                a.speed = 0;
+                document.getElementById(`wl-${i}`).classList.remove('spinning');
+                document.getElementById(`wr-${i}`).classList.remove('spinning');
+            }
+
+            const el = document.getElementById('amr-' + i);
+            el.style.transform = `translate(${a.x}px, ${a.y}px) rotate(${a.angle}deg)`;
+        });
+
+        if (followIndex !== -1) {
+            followCamera();
+        }
+    }
+
+    function followCamera() {
+        const v = amrs[followIndex];
+        const vx = window.innerWidth / 2 - v.x;
+        const vy = window.innerHeight / 2 - v.y;
+        floor.style.left = vx + 'px';
+        floor.style.top = vy + 'px';
+    }
+
+    function followVehicle(index) {
+        followIndex = index;
+        const btns = document.querySelectorAll('.btn');
+        btns.forEach((b, i) => b.classList.toggle('active-btn', i === index + 1));
+        if (index !== -1) statusText.innerText = `Status: Following ${amrs[index].id}`;
+        else statusText.innerText = `Status: Free View`;
+    }
+
+    // คลิกเพื่อสั่งรถ AMR-01 วิ่งไปหา (จำลองการสั่งงาน)
+    floor.onclick = (e) => {
+        if (followIndex !== -1) {
+            amrs[followIndex].targetX = e.offsetX;
+            amrs[followIndex].targetY = e.offsetY;
+        }
+    };
+
+    initFactory();
+    setInterval(updatePhysics, 30);
+
+</script>
+</body>
+</html>
